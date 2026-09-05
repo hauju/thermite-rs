@@ -100,6 +100,25 @@ imported — put `Sentry.init()` in its own `instrument.ts` and import that firs
 halfway down `index.ts` silently loses most auto-instrumentation.
 </Warning>
 
+## Rust
+
+Rust is the one language with a first-party SDK, because the Sentry Rust client is seventeen
+crates and a hub-and-scope stack to fill in about fourteen fields. `thermite-sdk` models those
+fields and nothing else, and builds for `wasm32-unknown-unknown`.
+
+```rust
+let mut options = thermite_sdk::Options::new(std::env::var("THERMITE_DSN")?);
+options.release = Some(env!("CARGO_PKG_VERSION").to_string());
+options.environment = Some("production".into());
+
+// Held for the life of `main`: dropping it flushes whatever the sender thread still has queued.
+let _guard = thermite_sdk::init(options)?;
+```
+
+Panic reporting and session tracking are both on by default. The `web` feature swaps the sender
+thread for `fetch`; `tracing-layer` turns `ERROR` records into events and everything else into
+breadcrumbs.
+
 ## What Thermite does with each envelope item
 
 Every SDK sends more than Thermite reads. Nothing is rejected over the extras — an envelope

@@ -144,6 +144,14 @@ server. Anything server-side needs `--no-default-features --features server`, wh
     Instance-wide defaults; a project can override both with its own routing. With neither set,
     alerting is off.
   </Accordion>
+  <Accordion title="Self-reporting">
+    - `THERMITE_DSN` — Thermite watches itself with its own SDK. Point this at a **different**
+      Thermite, or at least a different project: an instance reporting its own ingest failures
+      into the ingest that is failing loses exactly the events worth having.
+    - `THERMITE_RELEASE` — the deployed git SHA. Triage hands an agent the release an error came
+      from, and `git diff` only works when that name is a revision.
+    - `ENVIRONMENT` — environment tag
+  </Accordion>
 </AccordionGroup>
 
 ## Changing the database schema

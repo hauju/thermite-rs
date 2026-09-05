@@ -49,6 +49,7 @@ bunx @tailwindcss/cli -i tailwind.css -o assets/tailwind.css
 ```
 src/                    Dioxus app: pages, components, server modules
 crates/thermite-core/   ingest, grouping, digest, and the queries everything reads
+crates/thermite-sdk/    the reporting client, for thermite itself and any app that adopts it
 migrations/             one sequence for the whole workspace
 ```
 
@@ -356,6 +357,34 @@ default allowlist is loopback-only, which would reject every request to a deploy
 Thermite is, where `/mcp` lives, how to authenticate, and the triage loop. It describes the
 interface, never data — keep it that way.
 
+### Self-reporting
+
+Thermite watches itself with `crates/thermite-sdk`, wired in `main.rs::init_self_reporting` and
+active whenever `THERMITE_DSN` is set. **Point it at a different thermite, or at least a different
+project** — an instance reporting its own ingest failures into the ingest that is failing loses
+exactly the events worth having.
+
+`thermite-sdk` writes the same envelopes `thermite-core` reads, but shares no code with it: core
+reads them and drags in sqlx and axum to do it, the SDK writes them and has to build for
+`wasm32-unknown-unknown`. What keeps the two in step is a pair of tests in `server/thermite_tests.rs`
+that send the same message through this SDK *and* an unmodified Sentry client and assert one issue
+with `times_seen` 2 — not a shared type. Unmodified Sentry SDKs remain first-class; this exists
+because seventeen `sentry-*` crates is a lot of machinery to fill in about fourteen fields, and
+none of it works under wasm.
+
+Three things to preserve:
+
+- **The `tracing` layer never reports its own crate's records.** The transport logs a failed
+  delivery at `ERROR`; reporting that sends another envelope, which fails, which logs — a loop with
+  no bound that spins fastest exactly when thermite is unreachable.
+- **`THERMITE_RELEASE` should be the deployed git SHA.** Triage hands an agent the release an error
+  came from and expects to `git diff` against it; the `thermite@<version>` fallback never changes
+  and names no revision.
+- **CI does not build the SDK for wasm on the host jobs**, so the `web` feature has its own job
+  (`wasm client`). The host build cannot catch its breakage: `uuid` needs `uuid/js` to compile at
+  all under `wasm32-unknown-unknown`, and `keepalive` is set through `Reflect` because web-sys 0.3
+  does not type it on `RequestInit`.
+
 ### Dashboard
 
 `/dashboard` (all projects with attention flags — new issues, failing cron monitors, dead-lettered
@@ -483,7 +512,8 @@ requires running `dx bundle --web --release` first.
 
 Copy `.env.example` to `.env`. Key variables: `DATABASE_URL`, `BASE_URL`, `SESSION_SECRET` (hex, 64+
 bytes), the `FERRISKEY_*` set, SMTP settings, optional `THERMITE_MAX_ENVELOPE_BYTES` /
-`THERMITE_RATE_LIMIT_PER_MINUTE`.
+`THERMITE_RATE_LIMIT_PER_MINUTE`, optional `THERMITE_DSN` + `THERMITE_RELEASE` + `ENVIRONMENT`
+for self-reporting (see "Self-reporting" below).
 
 ### Styling
 

@@ -87,6 +87,11 @@ async fn main() {
         .install_default()
         .expect("Failed to install rustls crypto provider");
 
+    // Before the tracing subscriber, because the layer below reports through the client this
+    // installs. Held for the life of `main`: dropping it closes the release-health session and
+    // flushes whatever the sender thread still has queued.
+    let thermite_guard = init_self_reporting();
+
     let registry = tracing_subscriber::registry()
         .with(
             tracing_subscriber::fmt::layer()
@@ -97,6 +102,15 @@ async fn main() {
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| "info,dx_saas_template=debug".parse().unwrap()),
         );
+
+    // `Option<Layer>` rather than a bare one: with no DSN configured the layer would still visit
+    // every field of every log line before discarding the result, and `None` reports
+    // `LevelFilter::OFF` so the records are never built at all.
+    let registry = registry.with(
+        thermite_guard
+            .is_some()
+            .then(thermite_sdk::tracing_layer::ThermiteLayer::new),
+    );
 
     registry.init();
 
@@ -126,6 +140,45 @@ async fn main() {
     .expect("Server error");
 
     tracing::info!("Shutdown complete");
+}
+
+/// Starts reporting this process's own errors, if a DSN is configured.
+///
+/// Point it at a *different* thermite, or at least a different project: an instance reporting its
+/// own ingest failures into the ingest that is failing loses exactly the events worth having.
+///
+/// Returns the guard rather than dropping it — dropping it here would end the release-health
+/// session and flush before the server has started.
+#[cfg(feature = "server")]
+fn init_self_reporting() -> Option<thermite_sdk::Guard> {
+    // `SENTRY_DSN` is the name this used to have, kept working so a running deployment does not
+    // go quiet on the release that renamed it.
+    let dsn = std::env::var("THERMITE_DSN")
+        .or_else(|_| std::env::var("SENTRY_DSN"))
+        .ok()
+        .filter(|dsn| !dsn.trim().is_empty())?;
+
+    let mut options = thermite_sdk::Options::new(dsn);
+
+    // A git SHA is worth far more here than a version string: triage hands an agent the release an
+    // error came from, and `git diff <last good>..<bad>` only works when that name is a revision.
+    // Falls back to the package version when the deployment sets nothing.
+    options.release = Some(std::env::var("THERMITE_RELEASE").unwrap_or_else(|_| {
+        concat!(env!("CARGO_PKG_NAME"), "@", env!("CARGO_PKG_VERSION")).to_string()
+    }));
+    options.environment = std::env::var("ENVIRONMENT").ok();
+    // Which replica. Docker sets `HOSTNAME` to the container id, which is what makes a fault that
+    // only happens on one of them visible as such rather than as intermittent.
+    options.server_name = std::env::var("HOSTNAME").ok();
+
+    match thermite_sdk::init(options) {
+        Ok(guard) => Some(guard),
+        // The tracing subscriber is not up yet, so this cannot go through `tracing`.
+        Err(error) => {
+            eprintln!("self-reporting is off, the configured DSN is not valid: {error}");
+            None
+        }
+    }
 }
 
 /// Resolves once the process is asked to stop: Ctrl-C when run locally, SIGTERM

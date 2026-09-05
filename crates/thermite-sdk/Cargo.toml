@@ -1,0 +1,80 @@
+[package]
+name = "thermite-sdk"
+description = "Minimal Sentry-protocol error reporter for Thermite."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+# Not AGPL, unlike the rest of the workspace: this crate is linked into the user's own
+# application, and AGPL there would reach through into their code. Every Sentry SDK is
+# permissively licensed for the same reason.
+license = "MIT OR Apache-2.0"
+repository.workspace = true
+
+[features]
+# On by default so `cargo test` and CI exercise the sender thread without a flag. A wasm consumer
+# turns it off (`default-features = false`) and picks its own transport.
+default = ["native", "sessions"]
+# The HTTP sender thread, and with it the `init` that does not need to be handed a transport.
+native = ["dep:reqwest", "dep:backtrace"]
+# Release health. On by default because thermite's crash-free rate only exists if SDKs send
+# sessions, and sessions cost no quota there — off, the dashboard reads "not enough data" forever.
+sessions = []
+# A `tracing` layer: ERROR becomes an event, everything else a breadcrumb. Off by default — it is
+# the only feature that pulls in a dependency the host application may not already have.
+tracing-layer = ["dep:tracing-subscriber"]
+# The browser: `fetch` instead of a sender thread. `uuid/js` is not optional here — without a
+# source of randomness `uuid` refuses to compile for wasm32-unknown-unknown at all.
+web = [
+    "dep:wasm-bindgen",
+    "dep:wasm-bindgen-futures",
+    "dep:web-sys",
+    "dep:js-sys",
+    "uuid/js",
+]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+# A dropped envelope is the one failure this crate can neither retry nor report, so it has to be
+# logged. The facade costs nothing when the host application installs no subscriber.
+tracing = { workspace = true }
+
+# Event ids. Sending one is what lets a retried envelope deduplicate against the copy that already
+# landed — without it thermite mints a fresh id per delivery and the retry becomes a second event.
+uuid = { version = "1", features = ["v4"] }
+
+# The native transport. `blocking` because the sender is a dedicated thread rather than a task:
+# reporting has to work in a binary with no async runtime, and a flush at shutdown must not depend
+# on one still being alive. Already in the workspace lock, so it adds no new tree here — a target
+# that wants something smaller implements `Transport` instead.
+reqwest = { version = "0.12", default-features = false, features = [
+    "blocking",
+    "rustls-tls",
+], optional = true }
+
+# The `tracing` layer. `registry` is what `Layer` composes into.
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+    "std",
+    "registry",
+], optional = true }
+
+# Structured stack frames. `std::backtrace` only renders to a string, and parsing that back into
+# frames is guesswork against a format with no stability guarantee.
+backtrace = { version = "0.3", optional = true }
+
+# The browser transport. Declared unconditionally rather than under a `cfg(target_arch)` target
+# section: all four build fine off wasm, and one `web` feature is easier to reason about than a
+# feature whose contents depend on the target.
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", optional = true, features = [
+    "Window",
+    "Navigator",
+    "Location",
+    "Request",
+    "RequestInit",
+    "Response",
+] }

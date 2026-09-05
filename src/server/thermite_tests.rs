@@ -436,3 +436,220 @@ async fn an_unmodified_sentry_sdk_reports_release_health(pool: PgPool) {
     );
     assert_eq!(errored, 1, "the session captured an error before ending");
 }
+
+/// The parity proof: `thermite-sdk` and an unmodified Sentry client must land the same message
+/// in the *same* issue.
+///
+/// This is what makes the two interchangeable per application. Any divergence in grouping — a
+/// message reaching `type_and_value` down a different path, a fingerprint spelled differently
+/// — surfaces here as two issues where there should be one. Without it, the failure stays
+/// invisible until an app that switched SDKs splits its own history in half.
+///
+/// Note the two send the message through *different* fields, on purpose: sentry-rust sets a
+/// bare `message`, thermite-sdk sets `logentry.message`. Both are paths `type_and_value` reads,
+/// and this asserts they converge.
+#[sqlx::test]
+async fn thermite_sdk_groups_identically_to_the_sentry_sdk(pool: PgPool) {
+    const MESSAGE: &str = "payment gateway unreachable";
+
+    let project_id = create_project(&pool, "demo").await;
+    let base = serve(pool.clone()).await;
+    let dsn = format!(
+        "http://{PUBLIC_KEY}@{}/{project_id}",
+        base.trim_start_matches("http://")
+    );
+
+    let sentry_dsn = dsn.clone();
+    tokio::task::spawn_blocking(move || {
+        let mut options = sentry_sdk::ClientOptions::default();
+        options.dsn = Some(sentry_dsn.parse().expect("invalid DSN"));
+
+        let client = Arc::new(sentry_sdk::Client::from_config(sentry_sdk::apply_defaults(
+            options,
+        )));
+        let hub = sentry_sdk::Hub::new(Some(client.clone()), Arc::new(Default::default()));
+
+        hub.capture_message(MESSAGE, sentry_sdk::Level::Error);
+        assert!(
+            client.flush(Some(Duration::from_secs(10))),
+            "the sentry SDK failed to flush to thermite"
+        );
+    })
+    .await
+    .unwrap();
+
+    tokio::task::spawn_blocking(move || {
+        // `thermite-sdk`'s client is process-wide, so this is the one test in the binary that
+        // may initialize it. The panic hook stays off: it would outlive this test's server and
+        // report later panics at a socket nobody is listening on.
+        let mut options = thermite_sdk::Options::new(dsn);
+        options.attach_panic_hook = false;
+
+        let guard = thermite_sdk::init(options).expect("invalid DSN");
+
+        thermite_sdk::capture_message(MESSAGE, thermite_sdk::Level::Error);
+        assert!(
+            thermite_sdk::flush(Duration::from_secs(10)),
+            "thermite-sdk failed to flush to thermite"
+        );
+        drop(guard);
+    })
+    .await
+    .unwrap();
+
+    let (issues, times_seen): (i64, i64) =
+        sqlx::query_as("select count(*)::bigint, coalesce(sum(times_seen), 0)::bigint from issues")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+    assert_eq!(
+        issues, 1,
+        "both SDKs must group one message into one issue, not one each"
+    );
+    assert_eq!(times_seen, 2, "each SDK should contribute one event");
+
+    let title: String = sqlx::query_scalar("select title from issues")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(title, format!("Log Message: {MESSAGE}"));
+}
+
+/// Stack frames survive the round trip well enough for thermite to name a culprit.
+///
+/// The culprit is the assertion that matters. It is derived by `crash_location` walking the frames
+/// inward for the first `in_app` one with a function name, so a non-null culprit naming this file
+/// proves four things at once: frames arrived, `in_app` is set, symbolication resolved names, and
+/// the SDK's own frames were trimmed off the innermost end — without which every issue in every
+/// project would be attributed to `thermite_sdk::capture_error`.
+///
+/// Uses a `Client` directly rather than `init`: the process-wide client is a `OnceLock`, and this
+/// binary's tests run in parallel against a server each, so whichever called `init` first would
+/// decide where the others reported.
+#[sqlx::test]
+async fn thermite_sdk_frames_survive_into_a_culprit(pool: PgPool) {
+    let project_id = create_project(&pool, "demo").await;
+    let base = serve(pool.clone()).await;
+    let dsn = format!(
+        "http://{PUBLIC_KEY}@{}/{project_id}",
+        base.trim_start_matches("http://")
+    );
+
+    tokio::task::spawn_blocking(move || {
+        let mut options = thermite_sdk::Options::new(dsn);
+        options.attach_panic_hook = false;
+
+        let client = thermite_sdk::Client::new(options).expect("invalid DSN");
+
+        let error =
+            std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "connection refused");
+        let mut event = thermite_sdk::Event::from_error(&error);
+        event
+            .exception
+            .as_mut()
+            .and_then(|chain| chain.values.last_mut())
+            .unwrap()
+            .stacktrace = Some(thermite_sdk::stacktrace::capture());
+
+        client.capture(event);
+        assert!(
+            client.flush(Duration::from_secs(10)),
+            "thermite-sdk failed to flush to thermite"
+        );
+    })
+    .await
+    .unwrap();
+
+    let payload: Value = sqlx::query_scalar("select data from events")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+    let frames = payload["exception"]["values"]
+        .as_array()
+        .unwrap()
+        .last()
+        .unwrap()["stacktrace"]["frames"]
+        .as_array()
+        .expect("the stored event should carry frames");
+
+    assert!(
+        frames
+            .iter()
+            .any(|frame| frame["in_app"] == json!(true) && frame["function"].is_string()),
+        "no frame arrived marked in_app with a resolved function name"
+    );
+    assert!(
+        !frames.iter().any(|frame| frame["function"]
+            .as_str()
+            .is_some_and(|function| function.starts_with("thermite_sdk"))),
+        "the SDK's own frames should have been trimmed before sending"
+    );
+
+    let culprit: Option<String> = sqlx::query_scalar("select culprit from issues")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+    assert!(
+        culprit.is_some_and(|culprit| culprit.contains("thermite_tests")),
+        "the culprit should name the code that reported, not the reporter"
+    );
+}
+
+/// The release-health mirror of `an_unmodified_sentry_sdk_reports_release_health`.
+///
+/// Sessions are the denominator the crash-free rate needs, and they are the easiest thing in the
+/// protocol to get silently wrong: the item type, the `attrs.release` path, and the init/terminal
+/// split all have to match or thermite drops every update without complaint. Nothing hand-builds
+/// an envelope here, for the same reason the sentry-side test does not.
+#[sqlx::test]
+async fn thermite_sdk_reports_release_health(pool: PgPool) {
+    let project_id = create_project(&pool, "demo").await;
+    let base = serve(pool.clone()).await;
+    let dsn = format!(
+        "http://{PUBLIC_KEY}@{}/{project_id}",
+        base.trim_start_matches("http://")
+    );
+
+    tokio::task::spawn_blocking(move || {
+        let mut options = thermite_sdk::Options::new(dsn);
+        // Release health is release-scoped by definition: without this the SDK still sends
+        // sessions and ingest drops every one of them.
+        options.release = Some("1.4.2".to_string());
+        options.attach_panic_hook = false;
+        // Driven explicitly below rather than by the guard, so the assertions do not depend on
+        // drop order.
+        options.auto_session_tracking = false;
+
+        let client = thermite_sdk::Client::new(options).expect("invalid DSN");
+
+        client.start_session();
+        client.capture(thermite_sdk::Event::message(
+            "payment gateway unreachable",
+            thermite_sdk::Level::Error,
+        ));
+        client.end_session();
+
+        assert!(
+            client.flush(Duration::from_secs(10)),
+            "thermite-sdk failed to flush to thermite"
+        );
+    })
+    .await
+    .unwrap();
+
+    let (sessions, errored): (i64, i64) = sqlx::query_as(
+        "select coalesce(sum(sc.sessions), 0)::bigint, coalesce(sum(sc.errored), 0)::bigint
+           from session_counts sc
+           join releases r on r.id = sc.release_id
+          where r.version = '1.4.2'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(sessions, 1, "the session should reach the rollup once");
+    assert_eq!(errored, 1, "the session captured an error before ending");
+}

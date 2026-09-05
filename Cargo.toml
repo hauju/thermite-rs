@@ -99,6 +99,13 @@ rmcp = { version = "3.0", features = [
 ], optional = true }
 schemars = { version = "1.2", optional = true }
 
+# Optional observability
+# Self-reporting: thermite watches itself with its own SDK. Sized to what ingest actually reads,
+# so unlike the Sentry SDK it was replaced with there is no reason to gate it behind a feature.
+thermite-sdk = { path = "crates/thermite-sdk", features = [
+    "tracing-layer",
+], optional = true }
+
 # Web dependencies
 gloo-timers = { version = "0.3.0", features = ["futures"], optional = true }
 
@@ -125,6 +132,7 @@ server = [
     "dep:crypto",
     "dep:smtp",
     "dep:thermite-core",
+    "dep:thermite-sdk",
     "dep:rustls",
     "dep:reqwest",
     "dep:rmcp",
@@ -140,7 +148,12 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 # Drives the router without binding a socket, for the tests that do not need one.
 tower = { version = "0.5", features = ["util"] }
-# The compatibility proof: an unmodified Sentry client pointed at our ingest endpoint.
+# The compatibility proof: an unmodified Sentry client pointed at our ingest endpoint, and the
+# other half of the parity test that asserts it groups identically to `thermite-sdk`.
+#
+# The rename originally worked around a collision with the app's own `sentry` dependency, which the
+# cutover to `thermite-sdk` removed. It stays because the parity test reads better with the two
+# clients spelled `sentry_sdk` and `thermite_sdk` side by side.
 sentry_sdk = { package = "sentry", version = "0.49", default-features = false, features = [
     "backtrace",
     "contexts",

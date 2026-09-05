@@ -4218,6 +4218,7 @@ dependencies = [
  "bytes",
  "cookie",
  "cookie_store",
+ "futures-channel",
  "futures-core",
  "futures-util",
  "http 1.4.2",
@@ -5403,6 +5404,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "thermite-core",
+ "thermite-sdk",
  "thiserror 2.0.19",
  "tokio",
  "tower",
@@ -5440,6 +5442,25 @@ dependencies = [
  "url",
  "uuid",
  "zstd",
+]
+
+[[package]]
+name = "thermite-sdk"
+version = "0.1.0"
+dependencies = [
+ "backtrace",
+ "chrono",
+ "js-sys",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

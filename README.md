@@ -410,6 +410,10 @@ Thermite is [AGPL-3.0](LICENSE). Run it, read it, modify it, self-host it for an
 commercially, inside your own company — at no cost. What the licence asks in return is that if you
 modify Thermite and offer *that* to others over a network, you publish your changes.
 
+`thermite-sdk` is **MIT OR Apache-2.0**, deliberately not AGPL. It is linked into your application,
+where copyleft would reach through into your own code. Every Sentry SDK is permissive for the same
+reason.
+
 If AGPL does not work for you — a fork you cannot publish, or a legal policy that rules it out — a
 commercial licence is available: [mail@haukejung.de](mailto:mail@haukejung.de).
 

@@ -102,6 +102,36 @@ jobs:
       - name: cargo test (app crate, server feature)
         run: cargo test -p thermite --no-default-features --features server
 
+  # Every other job builds for the host, and none of them can catch this one's breakage:
+  # `uuid` refuses to compile at all under wasm32-unknown-unknown without `uuid/js`, and the
+  # browser transport sets `keepalive` through `Reflect` because web-sys 0.3 does not type it on
+  # `RequestInit` — so nothing off-target type-checks that path. The `web` feature is the reason
+  # thermite-sdk exists rather than using sentry-rust, which has no working wasm story, so it
+  # needs a gate of its own.
+  wasm:
+    name: wasm client (thermite-sdk)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          targets: wasm32-unknown-unknown
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Only the SDK: the app crate's own wasm build is covered by `dx bundle` in the deploy
+      # workflow, and building it here would mean Bun, Tailwind and a full Dioxus client build for
+      # a check that is about one crate.
+      - name: cargo clippy (wasm)
+        run: |
+          cargo clippy -p thermite-sdk \
+            --target wasm32-unknown-unknown \
+            --no-default-features --features web,sessions \
+            --all-targets -- -D warnings
+
   audit:
     name: cargo audit (vulnerable deps)
     runs-on: ubuntu-latest

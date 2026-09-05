@@ -96,11 +96,12 @@ Sentry-compatible. Do not break it to make a change easier.
 
 ## Licensing
 
-Thermite is licensed under the AGPL-3.0:
+Thermite is deliberately split across two licences:
 
 | | Licence | |
 |---|---|---|
 | `thermite`, `thermite-core` | **AGPL-3.0** | The server, dashboard and ingest |
+| `thermite-sdk` | **MIT OR Apache-2.0** | Linked into *your* application, so copyleft would reach through into your code |
 
 Contributions are accepted under the [Thermite CLA](CLA.md). **You keep your copyright** — it is a
 licence grant, not an assignment. It exists so a commercial licence can be offered to organisations

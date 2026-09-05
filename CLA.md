@@ -3,7 +3,7 @@
 Thank you for contributing to Thermite.
 
 This agreement lets Thermite stay open source **and** be offered commercially. Thermite is published
-under the AGPL-3.0, and a commercial licence is
+under the AGPL-3.0 (the `thermite-sdk` crate under MIT OR Apache-2.0), and a commercial licence is
 sold to organisations that cannot use the AGPL. Offering that second licence is only possible if a
 single party holds the necessary rights to every line in the project — which is what you grant
 below.
