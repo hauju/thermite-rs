@@ -1,0 +1,157 @@
+[package]
+name = "thermite"
+description = "Self-hosted, Sentry-compatible error tracking with an agent-shaped API and an MCP server."
+readme = "README.md"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[workspace]
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["Hauke Jung <hauke.jung@outlook.de>"]
+license = "AGPL-3.0-only"
+repository = "https://github.com/hauju/thermite-rs"
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0.17"
+tracing = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+
+[dependencies]
+# Framework
+dioxus = { version = "0.7.10", features = ["router", "fullstack"] }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3.2", default-features = false, features = [
+    "env-filter",
+    "fmt",
+    "json",
+    "registry",
+] }
+
+# Date/time
+chrono = { workspace = true }
+
+# Icons
+dioxus-free-icons = { version = "0.10.0", features = ["lucide"] }
+
+# Documentation
+dioxus-docs-kit = { version = "0.6.1", default-features = false }
+
+# Workspace crates
+auth = { package = "dx-auth", git = "https://github.com/hauju/dx-kit.git", tag = "dx-auth-v0.4.0", optional = true }
+crypto = { package = "dx-crypto", git = "https://github.com/hauju/dx-kit.git", tag = "dx-crypto-v0.1.0", optional = true }
+smtp = { package = "dx-smtp", git = "https://github.com/hauju/dx-kit.git", tag = "dx-smtp-v0.1.0", optional = true }
+# Ingest, grouping, and the queries the dashboard and the MCP tools both read.
+thermite-core = { path = "crates/thermite-core", optional = true }
+
+# Server dependencies
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "uuid",
+    "chrono",
+    "json",
+    "macros",
+    "migrate",
+], optional = true }
+uuid = { version = "1", features = ["v4", "serde"], optional = true }
+axum = { version = "0.8", optional = true }
+tokio = { version = "1", features = ["rt", "time", "signal", "macros"], optional = true }
+tower-sessions = { version = "0.14", features = ["signed"], optional = true }
+tower-sessions-sqlx-store = { version = "0.15", features = ["postgres"], optional = true }
+tower-http = { version = "0.6", features = ["compression-gzip", "trace"], optional = true }
+governor = { version = "0.10", features = ["std"], optional = true }
+dotenvy = { version = "0.15", optional = true }
+secrecy = { version = "0.10", optional = true }
+hex = { version = "0.4", optional = true }
+url = { version = "2.5", optional = true }
+async-trait = { version = "0.1", optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring"], optional = true }
+# Alert webhook delivery (server::alerts).
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+], optional = true }
+
+# MCP server (Streamable HTTP transport). rmcp 3 negotiates every protocol version from
+# 2024-11-05 through 2026-07-28, so new and old clients both work.
+rmcp = { version = "3.0", features = [
+    "server",
+    "transport-streamable-http-server",
+    "macros",
+], optional = true }
+schemars = { version = "1.2", optional = true }
+
+# Web dependencies
+gloo-timers = { version = "0.3.0", features = ["futures"], optional = true }
+
+[features]
+default = ["web"]
+web = ["dioxus/web", "auth/web", "dep:gloo-timers", "dioxus-docs-kit/web"]
+server = [
+    "dioxus/server",
+    "dep:sqlx",
+    "dep:uuid",
+    "dep:axum",
+    "dep:tokio",
+    "dep:tower-sessions",
+    "dep:tower-sessions-sqlx-store",
+    "dep:tower-http",
+    "dep:governor",
+    "dep:dotenvy",
+    "dep:secrecy",
+    "dep:hex",
+    "dep:url",
+    "dep:async-trait",
+    "dep:auth",
+    "auth/server",
+    "dep:crypto",
+    "dep:smtp",
+    "dep:thermite-core",
+    "dep:rustls",
+    "dep:reqwest",
+    "dep:rmcp",
+    "dep:schemars",
+]
+
+[dev-dependencies]
+# `#[sqlx::test]` builds on tokio's test harness and hands each case its own
+# freshly migrated database, so the DB-backed tests need a multi-thread runtime.
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+# The HTTP tests drive a real server on a loopback port rather than calling
+# handlers directly, so the middleware stack is exercised as deployed.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# Drives the router without binding a socket, for the tests that do not need one.
+tower = { version = "0.5", features = ["util"] }
+# The compatibility proof: an unmodified Sentry client pointed at our ingest endpoint.
+sentry_sdk = { package = "sentry", version = "0.49", default-features = false, features = [
+    "backtrace",
+    "contexts",
+    "reqwest",
+    "rustls",
+    # Drives the release-health test: without it the SDK has no session tracking to exercise.
+    "release-health",
+] }
+flate2 = "1"
+
+[build-dependencies]
+dioxus-docs-kit-build = "0.6.1"
+# Renders assets/legal/*.md into OUT_DIR at build time (see build.rs).
+markdown = "1.0.0"

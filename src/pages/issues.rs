@@ -1,0 +1,446 @@
+//! Issue list for one project: rate over time, current state, and what is broken.
+
+use dioxus::prelude::*;
+use dioxus_free_icons::{Icon, icons::ld_icons::LdSettings};
+
+use crate::components::sparkline::{RateChart, Sparkline};
+use crate::errors_data::{
+    components, environments, get_project, list_issues, list_monitors, project_stats,
+    release_health,
+};
+use crate::models::errors::{IssueRow, MonitorRow, ReleaseHealthRow, level_class};
+use crate::routes::Route;
+
+#[component]
+pub fn Issues(slug: String) -> Element {
+    let mut status = use_signal(|| "unresolved".to_string());
+    let mut query = use_signal(String::new);
+    let mut window = use_signal(|| "24h".to_string());
+    // Worst first, not newest first. The API defaults to `last_seen` to match Sentry, but for a
+    // board that default buries a thousand-event outage under a three-event blip that happened to
+    // fire more recently.
+    let mut sort = use_signal(|| "events".to_string());
+    let mut environment = use_signal(|| "all".to_string());
+    let mut component = use_signal(|| "all".to_string());
+
+    // Only for the header: the display name, and slug as the subtitle — mirroring how every
+    // card on /projects and /dashboard renders the pair.
+    let project = use_resource({
+        let slug = slug.clone();
+        move || {
+            let slug = slug.clone();
+            async move { get_project(slug).await }
+        }
+    });
+
+    let envs = use_resource({
+        let slug = slug.clone();
+        move || {
+            let slug = slug.clone();
+            async move { environments(slug).await }
+        }
+    });
+
+    let comps = use_resource({
+        let slug = slug.clone();
+        move || {
+            let slug = slug.clone();
+            async move { components(slug).await }
+        }
+    });
+
+    let stats = use_resource({
+        let slug = slug.clone();
+        move || {
+            let slug = slug.clone();
+            let window = window();
+            async move { project_stats(slug, window).await }
+        }
+    });
+
+    let monitors = use_resource({
+        let slug = slug.clone();
+        move || {
+            let slug = slug.clone();
+            async move { list_monitors(slug).await }
+        }
+    });
+
+    let releases = use_resource({
+        let slug = slug.clone();
+        move || {
+            let slug = slug.clone();
+            let window = window();
+            async move { release_health(slug, window).await }
+        }
+    });
+
+    let issues = use_resource({
+        let slug = slug.clone();
+        move || {
+            let slug = slug.clone();
+            let status = status();
+            let query = query();
+            let environment = environment();
+            let component = component();
+            let sort = sort();
+            async move {
+                list_issues(
+                    slug,
+                    (status != "all").then_some(status),
+                    (!query.trim().is_empty()).then(|| query.trim().to_string()),
+                    (environment != "all").then_some(environment),
+                    (component != "all").then_some(component),
+                    sort,
+                )
+                .await
+            }
+        }
+    });
+
+    rsx! {
+        div { class: "max-w-6xl",
+            div { class: "flex items-start justify-between gap-4 mb-6",
+                div { class: "min-w-0",
+                    h1 { class: "text-2xl font-bold truncate",
+                        match &*project.read_unchecked() {
+                            Some(Ok(p)) => rsx! { "{p.name}" },
+                            // The slug is correct-if-plain, so the header never blocks on the fetch.
+                            _ => rsx! { "{slug}" },
+                        }
+                    }
+                    div { class: "text-xs text-base-content/50 font-mono truncate", "{slug}" }
+                }
+                div { class: "flex items-center gap-2 shrink-0",
+                    div { class: "join",
+                        for option in ["24h", "7d", "30d"] {
+                            button {
+                                class: if window() == option { "join-item btn btn-sm btn-primary" } else { "join-item btn btn-sm" },
+                                onclick: move |_| window.set(option.to_string()),
+                                "{option}"
+                            }
+                        }
+                    }
+                    Link {
+                        to: Route::ProjectSettings { slug: slug.clone() },
+                        class: "btn btn-sm btn-ghost btn-square",
+                        "aria-label": "Project settings",
+                        Icon { icon: LdSettings, width: 16, height: 16 }
+                    }
+                }
+            }
+
+            match &*stats.read_unchecked() {
+                Some(Ok(stats)) => rsx! {
+                    div { class: "card bg-base-200 border border-base-300 mb-6",
+                        div { class: "card-body gap-4",
+                            div { class: "flex flex-wrap gap-6",
+                                Metric { label: "Events", value: stats.totals.events }
+                                Metric { label: "Unresolved", value: stats.totals.unresolved_issues }
+                                Metric { label: "New", value: stats.totals.new_issues }
+                                Metric { label: "Regressions", value: stats.totals.regressions }
+                                // Always rendered, unlike the monitors/releases panels: the zero
+                                // is the point — "nothing was silently lost", answered from
+                                // ingest day one rather than only once something goes missing.
+                                div {
+                                    title: dropped_breakdown(&stats.totals.dropped_by_reason),
+                                    div { class: "text-xs uppercase tracking-wide text-base-content/50",
+                                        "Dropped"
+                                    }
+                                    div {
+                                        class: if stats.totals.dropped > 0 { "text-2xl font-semibold tabular-nums text-error" } else { "text-2xl font-semibold tabular-nums text-base-content/40" },
+                                        "{stats.totals.dropped}"
+                                    }
+                                }
+                            }
+                            RateChart {
+                                counts: stats.series.iter().map(|b| b.count).collect::<Vec<_>>(),
+                                labels: stats.series.iter().map(|b| b.bucket.clone()).collect::<Vec<_>>(),
+                                resolution: stats.resolution.clone(),
+                                dropped: stats.series.iter().map(|b| b.dropped).collect::<Vec<_>>(),
+                            }
+                        }
+                    }
+                },
+                Some(Err(e)) => rsx! {
+                    div { class: "alert alert-error mb-6", "Could not load stats: {e}" }
+                },
+                None => rsx! {
+                    div { class: "skeleton h-48 mb-6" }
+                },
+            }
+
+            // Only rendered once a job has checked in: an instance that runs no cron jobs should
+            // not carry an empty panel forever.
+            if let Some(Ok(list)) = &*monitors.read_unchecked()
+                && !list.is_empty()
+            {
+                Monitors { monitors: list.clone() }
+            }
+
+            // Same rule: most SDKs never send sessions, and an empty release-health panel would
+            // read as "no crashes" rather than "nothing is reporting".
+            if let Some(Ok(list)) = &*releases.read_unchecked()
+                && list.iter().any(|r| r.sessions > 0)
+            {
+                ReleaseHealth { releases: list.clone() }
+            }
+
+            div { class: "flex flex-wrap gap-2 mb-4",
+                div { class: "join",
+                    for option in ["unresolved", "resolved", "ignored", "all"] {
+                        button {
+                            class: if status() == option { "join-item btn btn-sm btn-primary" } else { "join-item btn btn-sm" },
+                            onclick: move |_| status.set(option.to_string()),
+                            "{option}"
+                        }
+                    }
+                }
+                div { class: "join",
+                    for (value , label) in [("events", "most events"), ("last_seen", "most recent")] {
+                        button {
+                            class: if sort() == value { "join-item btn btn-sm btn-primary" } else { "join-item btn btn-sm" },
+                            onclick: move |_| sort.set(value.to_string()),
+                            "{label}"
+                        }
+                    }
+                }
+                // Only worth showing once there is something to choose between.
+                if let Some(Ok(envs)) = &*envs.read_unchecked() {
+                    if envs.len() > 1 {
+                        select {
+                            class: "select select-sm select-bordered w-auto",
+                            onchange: move |e| environment.set(e.value()),
+                            option { value: "all", "all environments" }
+                            for env in envs.iter().cloned() {
+                                option { value: "{env}", selected: environment() == env, "{env}" }
+                            }
+                        }
+                    }
+                }
+                // Even one component is worth filtering on: events through the unlabeled
+                // default key carry no component tag, so "worker" vs everything-else is
+                // already a meaningful split.
+                if let Some(Ok(comps)) = &*comps.read_unchecked() {
+                    if !comps.is_empty() {
+                        select {
+                            class: "select select-sm select-bordered w-auto",
+                            onchange: move |e| component.set(e.value()),
+                            option { value: "all", "all components" }
+                            for comp in comps.iter().cloned() {
+                                option { value: "{comp}", selected: component() == comp, "{comp}" }
+                            }
+                        }
+                    }
+                }
+                input {
+                    class: "input input-sm input-bordered flex-1 min-w-48",
+                    r#type: "search",
+                    placeholder: "Search titles…",
+                    value: "{query}",
+                    oninput: move |e| query.set(e.value()),
+                }
+            }
+
+            match &*issues.read_unchecked() {
+                Some(Ok(rows)) if rows.is_empty() => rsx! {
+                    div { class: "card bg-base-200 border border-base-300",
+                        div { class: "card-body items-center text-center py-12",
+                            p { class: "text-base-content/60",
+                                if query().trim().is_empty() {
+                                    "Nothing here. Either nothing is broken, or nothing is reporting yet."
+                                } else {
+                                    "No issues match that search."
+                                }
+                            }
+                        }
+                    }
+                },
+                Some(Ok(rows)) => rsx! {
+                    div { class: "flex flex-col gap-2",
+                        for row in rows.iter().cloned() {
+                            IssueCard { row }
+                        }
+                    }
+                },
+                Some(Err(e)) => rsx! {
+                    div { class: "alert alert-error", "Could not load issues: {e}" }
+                },
+                None => rsx! {
+                    div { class: "flex flex-col gap-2",
+                        for _ in 0..3 {
+                            div { class: "skeleton h-20" }
+                        }
+                    }
+                },
+            }
+        }
+    }
+}
+
+/// `over_quota: 3, invalid: 1` for the Dropped metric's hover, or a hint when nothing dropped.
+fn dropped_breakdown(by_reason: &std::collections::BTreeMap<String, i64>) -> String {
+    if by_reason.is_empty() {
+        return "events rejected by quota, unsupported, unparseable, or discarded by the SDK"
+            .to_string();
+    }
+    by_reason
+        .iter()
+        .map(|(reason, count)| format!("{reason}: {count}"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+#[component]
+fn Metric(label: &'static str, value: i64) -> Element {
+    rsx! {
+        div {
+            div { class: "text-xs uppercase tracking-wide text-base-content/50", "{label}" }
+            div { class: "text-2xl font-semibold tabular-nums", "{value}" }
+        }
+    }
+}
+
+/// Sessions per release and how many of them crashed.
+///
+/// The point of the panel is the denominator: an error count rises with traffic, so it cannot tell
+/// a broken release from a busy one. Crash-free rate can.
+#[component]
+fn ReleaseHealth(releases: Vec<ReleaseHealthRow>) -> Element {
+    rsx! {
+        div { class: "card bg-base-200 border border-base-300 mb-6",
+            div { class: "card-body gap-3",
+                h2 { class: "card-title text-base", "Release health" }
+                div { class: "flex flex-col divide-y divide-base-300",
+                    for release in releases.iter().filter(|r| r.sessions > 0) {
+                        div { class: "flex items-center gap-4 py-2 first:pt-0 last:pb-0",
+                            span { class: "font-mono text-sm truncate flex-1", "{release.version}" }
+                            Sparkline {
+                                counts: release.series.clone(),
+                                unit: "sessions".to_string(),
+                                fill: "fill-success/70".to_string(),
+                            }
+                            span { class: "text-sm text-base-content/60 tabular-nums w-24 text-right",
+                                "{release.sessions} sessions"
+                            }
+                            match release.crash_free_rate {
+                                Some(rate) => rsx! {
+                                    span {
+                                        class: if rate < 0.99 { "text-sm font-semibold tabular-nums w-28 text-right text-error" } else { "text-sm font-semibold tabular-nums w-28 text-right" },
+                                        "{rate * 100.0:.2}% crash-free"
+                                    }
+                                },
+                                // Below the floor a rate is noise dressed as a measurement: one
+                                // crash in three sessions reads as a catastrophe and means nothing.
+                                None => rsx! {
+                                    span { class: "text-sm text-base-content/40 w-28 text-right",
+                                        "not enough data"
+                                    }
+                                },
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Cron monitors and whether their last run was on time.
+///
+/// A failed run also raises an ordinary issue, so this panel is a status board, not the alert
+/// path — the issue list below is where a miss actually gets triaged.
+#[component]
+fn Monitors(monitors: Vec<MonitorRow>) -> Element {
+    rsx! {
+        div { class: "card bg-base-200 border border-base-300 mb-6",
+            div { class: "card-body gap-3",
+                div { class: "text-xs uppercase tracking-wide text-base-content/50", "Cron monitors" }
+                div { class: "flex flex-col gap-2",
+                    for monitor in monitors {
+                        div { class: "flex items-center justify-between gap-4 text-sm",
+                            div { class: "min-w-0",
+                                div { class: "font-medium truncate", "{monitor.slug}" }
+                                div { class: "text-xs text-base-content/50 font-mono",
+                                    "{monitor.schedule} · {monitor.timezone}"
+                                }
+                            }
+                            div { class: "flex items-center gap-3 shrink-0",
+                                if let Some(next) = &monitor.next_due_at {
+                                    span { class: "text-xs text-base-content/50", "next {next}" }
+                                }
+                                span { class: "badge badge-sm {monitor_badge(monitor.status.as_deref())}",
+                                    "{monitor.status.clone().unwrap_or_else(|| \"pending\".into())}"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// A missed or timed-out job is an outage, so it reads as an error; `error` is a run that ran and
+/// reported failure, which is the job's own problem to report in detail.
+fn monitor_badge(status: Option<&str>) -> &'static str {
+    match status {
+        Some("ok") => "badge-success",
+        Some("missed") | Some("timeout") => "badge-error",
+        Some("error") => "badge-warning",
+        _ => "badge-ghost",
+    }
+}
+
+#[component]
+fn IssueCard(row: IssueRow) -> Element {
+    let badge = level_class(&row.level);
+
+    rsx! {
+        Link {
+            to: Route::IssueDetail { id: row.id },
+            class: "card bg-base-200 border border-base-300 hover:border-primary/50 transition-colors",
+            div { class: "card-body py-3 flex-row items-center gap-4",
+                div { class: "flex-1 min-w-0",
+                    div { class: "flex items-center gap-2 flex-wrap",
+                        span { class: "badge badge-sm {badge}", "{row.level}" }
+                        if row.status != "unresolved" {
+                            span { class: "badge badge-sm badge-ghost", "{row.status}" }
+                        }
+                        // Ties the header's "New" count to the rows it is counting.
+                        if row.is_new {
+                            span { class: "badge badge-sm badge-warning badge-outline", "new" }
+                        }
+                        // Signals that an agent already did the work of diagnosing this.
+                        if row.has_analysis {
+                            span { class: "badge badge-sm badge-primary badge-outline", "analysed" }
+                        }
+                    }
+                    div { class: "font-medium truncate mt-1", "{row.title}" }
+                    if let Some(culprit) = &row.culprit {
+                        div { class: "text-xs text-base-content/50 truncate font-mono", "{culprit}" }
+                    }
+                }
+                div { class: "hidden sm:block", Sparkline { counts: row.counts.clone() } }
+                // "Is this still happening?" — the count alone cannot answer that.
+                div { class: "text-right w-20 hidden lg:block",
+                    div { class: "font-semibold tabular-nums whitespace-nowrap", "{row.last_seen_ago}" }
+                    div { class: "text-xs text-base-content/50", "last seen" }
+                }
+                div { class: "text-right w-16",
+                    div { class: "font-semibold tabular-nums", "{row.times_seen}" }
+                    // "total", because the stats card above counts the selected window
+                    // while this is the issue's lifetime count.
+                    div { class: "text-xs text-base-content/50", "events total" }
+                }
+                // 10,000 events on one user and 500 events on 400 users are different problems.
+                if row.users_affected > 0 {
+                    div { class: "text-right w-14 hidden md:block",
+                        div { class: "font-semibold tabular-nums", "{row.users_affected}" }
+                        div { class: "text-xs text-base-content/50", "users" }
+                    }
+                }
+            }
+        }
+    }
+}

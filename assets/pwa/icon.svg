@@ -1,0 +1,37 @@
+<!--
+  Source for icon-192.png / icon-512.png (manifest purpose "any").
+
+  Rounded corners are baked in because "any" icons are shown as authored on
+  most launchers. The full-bleed variant for maskable/apple-touch is
+  icon-maskable.svg. Regenerate the PNGs with `just icons`.
+
+  The glyph is the ThermiteMark (src/components/logo.rs) scaled 12x from its
+  24-unit viewBox, which also scales the stroke to a weight that survives a
+  192px render — the dashboard mark's hairline would disappear at icon size.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1c1712"/>
+      <stop offset="1" stop-color="#0a0908"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.62" r="0.5">
+      <stop offset="0" stop-color="#ff7a2b" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#ff7a2b" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shell" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffc233"/>
+      <stop offset="1" stop-color="#e2401f"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffdf7"/>
+      <stop offset="1" stop-color="#ffb020"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="114" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="114" fill="url(#glow)"/>
+  <g transform="translate(112 112) scale(12)">
+    <path d="M10.42 3.9 2.77 17.16a1.83 1.83 0 0 0 1.58 2.74h15.3a1.83 1.83 0 0 0 1.58-2.74L13.58 3.9a1.83 1.83 0 0 0-3.16 0Z" stroke="url(#shell)" stroke-width="2.1" stroke-linejoin="round"/>
+    <path d="M12 10.6l3.55 6.15a.62.62 0 0 1-.54.93H8.99a.62.62 0 0 1-.54-.93Z" fill="url(#core)" stroke="url(#shell)" stroke-width="1.3" stroke-linejoin="round"/>
+  </g>
+</svg>

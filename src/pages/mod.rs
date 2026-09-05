@@ -1,0 +1,12 @@
+pub mod dashboard;
+pub mod docs;
+pub mod home;
+pub mod issue_detail;
+pub mod issues;
+pub mod legal;
+pub mod login;
+pub mod playground;
+pub mod pricing;
+pub mod project_settings;
+pub mod projects;
+pub mod settings;

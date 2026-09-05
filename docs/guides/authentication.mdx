@@ -1,0 +1,167 @@
+---
+title: Authentication
+description: Three doors into Thermite — a browser session for humans, API keys and OAuth for agents, DSN keys for SDKs
+sidebarTitle: Authentication
+---
+
+## Three doors
+
+| Who | Credential | Grants |
+| --- | --- | --- |
+| A human in a browser | Session cookie, issued after FerrisKey OIDC login | The whole dashboard |
+| A coding agent | An `oat_` API key, or a token from the OAuth flow | `/mcp` and the REST API |
+| An SDK reporting errors | A DSN public key | Sending events to one project, nothing else |
+
+The third is not authentication in the usual sense — a DSN key is a send-only capability and is
+covered in the [SDKs guide](/docs/guides/sdks). This page is about the other two.
+
+## The trust model
+
+Thermite is single-tenant. **Every authenticated account is a full operator over every project and
+all error data** — there are no roles, no per-project scoping, and no read-only user. The resolved
+identity exists in the code (`ApiAuth`) as the seam future scoping would thread through, but
+nothing consults it today.
+
+<Warning>
+That is why registration is not open to the internet. With `THERMITE_ALLOWED_EMAILS` and
+`THERMITE_ALLOWED_EMAIL_DOMAINS` both unset, only the **first** account may register on a fresh
+instance and registration closes as soon as any user exists — so leaving them unset is safe, but
+leaving the instance unregistered is not.
+</Warning>
+
+Set either or both to open it up again (comma-separated, matched case-insensitively):
+
+```bash
+THERMITE_ALLOWED_EMAILS=alice@example.com,bob@example.com
+THERMITE_ALLOWED_EMAIL_DOMAINS=example.com
+```
+
+## Humans: FerrisKey OIDC
+
+Thermite authenticates people against **[FerrisKey](https://ferriskey.dev)**, an open-source
+Rust-native identity provider, over OIDC (authorization code flow with PKCE). The login UI is
+Thermite's own rather than FerrisKey's, so the flow can branch on what credentials an account
+actually has. Sessions are `tower-sessions` rows in the same PostgreSQL.
+
+<Steps>
+  <Step title="User enters email">
+    The login page POSTs to `/auth/session/start`. The server looks the user up in FerrisKey and
+    inspects their credentials.
+  </Step>
+  <Step title="Branch on credentials">
+    - **Has passkey** → the server bootstraps a FerrisKey auth-flow session and returns WebAuthn
+      request options. The browser calls `navigator.credentials.get()` and POSTs the assertion to
+      `/auth/session/passkey/verify`.
+    - **Has password** → a password input POSTs to `/auth/session/password/verify`.
+    - **No credentials / new user** → registration-gated email OTP: the address must pass the
+      allowlist above (plus a captcha when `CAPTCHA_URL` is configured), then a 6-digit code goes
+      out over SMTP and is verified at `/auth/session/otp/verify`.
+  </Step>
+  <Step title="Token exchange">
+    On success the server exchanges the OIDC `code` for tokens at FerrisKey's
+    `/protocol/openid-connect/token` endpoint using the PKCE verifier, and validates the `id_token`
+    against FerrisKey's JWKS (cached, refreshed on key rotation).
+  </Step>
+  <Step title="Session cookie is set">
+    The session is persisted in PostgreSQL and the signed cookie is HTTP-only and — with
+    `SECURE_COOKIES=true` — secure and `SameSite=Lax`.
+  </Step>
+</Steps>
+
+<Tip>
+**Skipping FerrisKey locally.** `DEV_LOGIN=true` adds a "Dev login (local only)" shortcut that
+signs in as a fixed user with no IdP at all. It requires a debug build *and* the variable, and the
+whole feature is compiled out of `dx build --release` — it cannot run in production.
+</Tip>
+
+### Configuration
+
+| Variable | Description |
+| --- | --- |
+| `FERRISKEY_URL` | FerrisKey base API URL (e.g. `http://localhost:3333` or `https://ferriskey.example.com/api`) |
+| `FERRISKEY_ISSUER_URL` | _(Optional)_ Public OIDC issuer base URL. Falls back to `FERRISKEY_URL` with a trailing `/api` stripped. |
+| `FERRISKEY_REALM` | Realm name configured in FerrisKey |
+| `FERRISKEY_CLIENT_ID` | OIDC client ID registered in the realm |
+| `FERRISKEY_CLIENT_SECRET` | Client secret, for the code exchange and the `client_credentials` grant |
+
+<Warning>
+The OIDC client must allow `authorization_code` **and** `client_credentials`. The server uses the
+latter to look up, create and verify users without an interactive flow.
+</Warning>
+
+## Agents: API keys
+
+Create one under **Settings → API keys**. The plaintext token is shown once and never again — only
+a hash is stored — and it is prefixed `oat_`.
+
+Send it either way:
+
+```http
+X-API-Key: oat_...
+Authorization: Bearer oat_...
+```
+
+Both work on `/mcp` and on the REST API under `/api/v1`. A FerrisKey-issued JWT works on the same
+endpoints, for callers that already have one.
+
+Connecting Claude Code:
+
+```bash
+claude mcp add --transport http thermite https://thermite.example.com/mcp \
+  --header "Authorization: Bearer oat_..."
+```
+
+## Agents: the OAuth flow
+
+claude.ai cannot hold a pre-shared key, so Thermite is also an OAuth authorization server for its
+own MCP endpoint. An unauthenticated request to `/mcp` returns `401` with a `WWW-Authenticate`
+header pointing at the protected-resource metadata, which is what starts discovery:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `/.well-known/oauth-protected-resource` | Points at the authorization server |
+| `/.well-known/oauth-authorization-server` | Endpoint and capability metadata |
+| `/oauth/register` | Dynamic client registration |
+| `/oauth/authorize` | Consent, after logging in as a human |
+| `/oauth/token` | Code exchange |
+
+Access tokens are opaque `oat_` keys, not JWTs — which is why the metadata advertises no
+`jwks_uri`.
+
+Two things the consent screen does deliberately:
+
+- **It names the redirect target and warns on first use.** A client you have never approved before
+  is called out as such. A spurious warning costs a moment's attention; a missing one costs the
+  account.
+- **The issued token is named after the client that asked for it** — `{client name} ({client id})`
+  — not a fixed label. It appears in **Settings → API keys** like any other key, and revoking the
+  right one is reading rather than guesswork.
+
+## For contributors
+
+Two extractors, deliberately separate:
+
+```rust
+// Browser session — server functions take it as a parameter.
+#[post("/api/me", session: auth::UserSession)]
+async fn get_login_data() -> Result<Option<LoggedInData>, ServerFnError> {
+    Ok(session.data().ok().map(LoggedInData::from))
+}
+```
+
+`ApiAuth` (`src/server/api_auth.rs`) is the machine-facing half: it accepts an `oat_` key or a
+FerrisKey JWT and resolves the owning user. `thermite-core` ships its read API **unauthenticated**
+and `src/server/thermite.rs` wraps it in that check — inverting it would drag sessions and OAuth
+into the ingest crate.
+
+## Security middleware
+
+Every route mounted by the auth router is wrapped with:
+
+- **Rate limiting** — 20 requests per minute per client IP. Behind a proxy, set
+  `TRUST_PROXY_HEADERS=true` so the limiter keys on the forwarded client IP rather than your load
+  balancer.
+- **CSRF origin check** — POSTs must carry an `Origin` (or `Referer`) matching `BASE_URL`.
+
+Ingest is exempt from both by design: it authenticates with a DSN key, has to be reachable by
+anything on the internet, and runs its own per-project quota instead.

@@ -1,0 +1,65 @@
+---
+title: Introduction
+description: Thermite is self-hosted, Sentry-compatible error tracking built for coding agents
+sidebarTitle: Introduction
+---
+
+## What is Thermite?
+
+Thermite is a self-hosted error tracker that speaks Sentry's wire protocol. Point an unmodified
+Sentry SDK at it and events group into issues in your own PostgreSQL — no Sentry account, no error
+data leaving your infrastructure.
+
+What makes it different is who gets to act on the data. Everything the dashboard shows — the
+exception chain, every stack frame with source context, breadcrumbs, tags — is also served over an
+MCP server, shaped so a coding agent can diagnose a bug in one request instead of walking a
+resource tree. Claude Code connects with an API key; claude.ai connects through the built-in OAuth
+flow. Both hit the same tools.
+
+<Tip>
+One binary, one Postgres. No Redis, no message broker, no worker pool.
+</Tip>
+
+## The triage loop
+
+Thermite never calls a model. It hands the work to your own agent:
+
+1. **An exception lands.** Ingest groups it into an issue and — in the same transaction — queues
+   exactly one unit of triage work, however large the error storm behind it.
+2. **Your agent claims the work over MCP.** The claim is leased, so two agents never triage the
+   same bug twice, and an agent that dies releases its work. The item carries the release that
+   crashed — when that is a git SHA, the agent can check out the revision that actually broke.
+3. **The analysis comes back.** Root cause and suggested fix land on the issue page, next to the
+   alert that told you a human should look.
+
+## Beyond errors
+
+<CardGroup cols={2}>
+  <Card title="Cron monitoring" icon="clock">
+    Jobs check in on their schedule through the same DSN. A missed or overrunning run becomes an
+    ordinary error event — grouped, alerted, and triaged like any other.
+  </Card>
+  <Card title="Release health" icon="activity">
+    Crash-free rate per release, counted from SDK sessions, so a busy release does not read as a
+    broken one.
+  </Card>
+  <Card title="Alerts per project" icon="bell">
+    Email and webhook routing per project, delivered at-least-once from an outbox. A duplicate is
+    possible; a silently dropped alert is not.
+  </Card>
+  <Card title="Component keys" icon="key">
+    Mint labeled DSNs for the parts of one product — 'worker', 'saas' — and filter by component
+    without splitting the issue stream into separate projects.
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="rocket" href="/docs/getting-started/installation">
+    Run Thermite locally and send it a first event.
+  </Card>
+  <Card title="Authentication" icon="lock" href="/docs/guides/authentication">
+    API keys for agents and the OIDC login for humans.
+  </Card>
+</CardGroup>

@@ -1,0 +1,70 @@
+[package]
+name = "thermite-core"
+description = "Sentry-compatible error ingest, grouping, and the query layer the dashboard and MCP tools both read."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+axum = "0.8"
+tower-http = { version = "0.6", features = ["trace", "cors", "limit"] }
+
+sqlx = { version = "0.8", default-features = false, features = [
+    "postgres",
+    "runtime-tokio-rustls",
+    "uuid",
+    "chrono",
+    "json",
+    # For `#[derive(FromRow)]`. The `query!` macros are deliberately not used here — the SQL is
+    # assembled from shared column-list constants, which literal-only macros cannot take.
+    "derive",
+] }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+# Crontab schedules for cron monitoring. Parsing five fields is deceptively easy to get subtly
+# wrong (step values, ranges, day-of-week/day-of-month interaction), and a wrong next-due time
+# means a silently missed alert.
+cron = "0.16"
+chrono-tz = "0.10"
+
+# `rt` for the retention sweeper's task, `time` for its interval. sqlx's runtime-tokio already
+# pulls tokio in transitively; declaring it makes the features this crate actually uses explicit
+# rather than relying on another crate's feature selection to happen to include them.
+tokio = { version = "1", features = ["rt", "time"] }
+
+# Request body decompression: SDKs vary in what they send.
+flate2 = "1"
+zstd = "0.13"
+brotli = "8"
+
+# OTLP ingest. The messages are hand-written rather than generated: `prost-build` would need
+# `protoc` in every build environment, and we read about a dozen fields out of a schema with
+# hundreds — the same reason `protocol::event` reads a `serde_json::Value` instead of modelling
+# Sentry's schema. What prost supplies is the decoder, which is the part worth not writing by hand
+# for a parser that takes bytes off the internet.
+prost = "0.14"
+bytes = "1"
+
+# Grouping: message normalization is regex-driven.
+regex = "1"
+sha2 = "0.10"
+uuid = { version = "1", features = ["v4", "serde"] }
+url = "2"
+
+[dev-dependencies]
+# `#[sqlx::test]` hands each case a freshly migrated database, so it needs a multi-thread runtime.
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+sqlx = { version = "0.8", default-features = false, features = ["macros", "migrate"] }
+# Drives the router without binding a socket.
+tower = { version = "0.5", features = ["util"] }
+flate2 = "1"
+chrono = { workspace = true }
+serde_json = { workspace = true }
+axum = "0.8"

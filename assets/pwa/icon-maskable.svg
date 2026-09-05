@@ -1,0 +1,41 @@
+<!--
+  Source for icon-maskable-512.png.
+
+  Full-bleed square with no baked rounding: Android applies its own adaptive
+  shape, so authored corners would be clipped twice. The glyph is centred and
+  scaled to keep its furthest corner inside the maskable safe zone — the inner
+  80%, radius 204.8 — so an aggressive circular mask cannot crop the triangle.
+  At 13x that corner sits at radius ~190, which leaves margin; 14x lands at
+  ~204 and is too close to the edge to be worth the extra size.
+
+  apple-touch-icon.png comes from icon.svg instead: iOS's squircle barely
+  crops, so the safe-zone padding would just render the mark undersized.
+
+  Regenerate the PNGs with `just icons`.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1c1712"/>
+      <stop offset="1" stop-color="#0a0908"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.6" r="0.45">
+      <stop offset="0" stop-color="#ff7a2b" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#ff7a2b" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shell" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffc233"/>
+      <stop offset="1" stop-color="#e2401f"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffdf7"/>
+      <stop offset="1" stop-color="#ffb020"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <g transform="translate(100 100) scale(13)">
+    <path d="M10.42 3.9 2.77 17.16a1.83 1.83 0 0 0 1.58 2.74h15.3a1.83 1.83 0 0 0 1.58-2.74L13.58 3.9a1.83 1.83 0 0 0-3.16 0Z" stroke="url(#shell)" stroke-width="2.1" stroke-linejoin="round"/>
+    <path d="M12 10.6l3.55 6.15a.62.62 0 0 1-.54.93H8.99a.62.62 0 0 1-.54-.93Z" fill="url(#core)" stroke="url(#shell)" stroke-width="1.3" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -1,0 +1,188 @@
+---
+title: SDKs
+description: Point any Sentry SDK at Thermite — Python, JavaScript, Rust — and see what it does with each envelope item
+sidebarTitle: SDKs
+---
+
+## There is nothing to install
+
+Thermite speaks Sentry's wire protocol, so the official Sentry SDK for your language already
+works against it. There is no `@thermite/*` package, no fork, no shim — you set the DSN and stop.
+
+<Tip>
+This is a tested guarantee, not an intention: `an_unmodified_sentry_sdk_reports_into_thermite`
+sends through a stock Sentry client on every CI run and asserts the event lands and groups.
+</Tip>
+
+## Get a DSN
+
+Open **Project settings → DSN keys**. The default DSN looks like this:
+
+```
+https://<public_key>@thermite.example.com/<project_id>
+```
+
+The same card mints **component DSNs** — labeled keys for the parts of one product (`worker`,
+`saas`, `cli`). They report into the same issue stream and stay filterable by component, so you
+do not have to split a product into separate projects to know which half broke.
+
+<Note>
+The public key is not a secret in the usual sense. It grants exactly one capability: sending
+events to one project.
+</Note>
+
+## Python
+
+```bash
+pip install sentry-sdk
+```
+
+```python
+import sentry_sdk
+
+sentry_sdk.init(
+    dsn="https://<public_key>@thermite.example.com/1",
+    release="myapp@1.4.2",          # or the git SHA — see Recommended settings
+    environment="production",
+    traces_sample_rate=0.0,          # Thermite stores no transactions
+)
+```
+
+Framework integrations (Django, Flask, FastAPI, Celery, …) are auto-enabled by `sentry-sdk` and
+need nothing from Thermite.
+
+### Cron check-ins
+
+Scheduled jobs report through the same DSN. The monitor is created on first sighting and carries
+its own schedule, so nothing is configured twice:
+
+```python
+from sentry_sdk.crons import monitor
+
+@monitor(
+    monitor_slug="nightly-import",
+    monitor_config={
+        "schedule": {"type": "crontab", "value": "0 3 * * *"},
+        "timezone": "Europe/Berlin",
+        "checkin_margin": 5,   # minutes late before the run counts as missed
+        "max_runtime": 30,     # minutes running before it counts as overrunning
+    },
+)
+def nightly_import():
+    ...
+```
+
+`{"type": "interval", "value": 15, "unit": "minute"}` works in place of a crontab expression.
+
+A missed or overrunning run becomes an ordinary error event — same grouping, same alerts, same
+triage queue as an exception. Cron monitoring is a new source of events, not a second pipeline.
+
+## JavaScript and TypeScript
+
+```bash
+bun add @sentry/browser   # or @sentry/node
+```
+
+```ts
+import * as Sentry from "@sentry/browser";
+
+Sentry.init({
+  dsn: "https://<public_key>@thermite.example.com/1",
+  release: "myapp@1.4.2",
+  environment: "production",
+  tracesSampleRate: 0,
+});
+```
+
+<Warning>
+On the server, `@sentry/node` v8+ must be initialised **before** any instrumented module is
+imported — put `Sentry.init()` in its own `instrument.ts` and import that first. Initialising it
+halfway down `index.ts` silently loses most auto-instrumentation.
+</Warning>
+
+## What Thermite does with each envelope item
+
+Every SDK sends more than Thermite reads. Nothing is rejected over the extras — an envelope
+carrying a transaction still delivers its events — but it helps to know what survives:
+
+| Item | Handling | Quota |
+| --- | --- | --- |
+| `event` | Stored, grouped into an issue, alerted, queued for triage | 1 per event |
+| `session` | Folded into release-health rollups (crash-free rate) | none |
+| `check_in` | Opens or closes a cron monitor run | none |
+| `client_report` | The SDK's own drop counters, surfaced as outcomes | none |
+| `transaction`, `log`, `attachment` | Dropped and counted under `unsupported:<type>` | none |
+
+Quota is charged per **event item**, never per request — one envelope carrying fifty events costs
+fifty.
+
+### Ingest endpoints
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/{project_id}/envelope/` | The modern endpoint. Everything in the table above. |
+| `POST /api/{project_id}/store/` | A bare event payload, for older SDKs. |
+| `POST /api/{project_id}/otlp/v1/logs` | OTLP log records. Error-severity records become events; the rest are counted and dropped. |
+
+Credentials are resolved from `?sentry_key=`, then `X-Sentry-Auth`, then the envelope's own `dsn`
+header — whichever your SDK happens to use.
+
+## Recommended settings
+
+<AccordionGroup>
+  <Accordion title="Always set release">
+    Release health and regression detection are both release-scoped: without it Thermite can group
+    your errors but cannot tell you what broke. Use the git SHA if you can — a triage item carries
+    the release that crashed, and an agent that receives a SHA can check out the revision that
+    actually broke instead of diagnosing against `main`.
+  </Accordion>
+  <Accordion title="Always set environment">
+    Staging noise and production incidents share an issue stream otherwise, and the dashboard's
+    environment filter has nothing to filter on.
+  </Accordion>
+  <Accordion title="Turn tracing off">
+    `traces_sample_rate=0` / `tracesSampleRate: 0`. Transactions cost no quota — they are dropped
+    on arrival — but sampling them still spends CPU and bandwidth on both ends producing something
+    nothing reads.
+  </Accordion>
+  <Accordion title="Leave session tracking on">
+    Sessions are the denominator of the crash-free rate and cost no quota. Off, release health
+    reads "not enough data" forever. It is on by default in the current SDKs; if your version
+    exposes a flag for it, leave it alone.
+  </Accordion>
+</AccordionGroup>
+
+## Rate limits
+
+An over-quota project gets `429` with both `Retry-After` and the Sentry-standard
+`X-Sentry-Rate-Limits: <seconds>:error:project:quota_exceeded`. Official SDKs read that header
+and back off on their own — there is nothing to configure, and a well-behaved SDK will stop
+sending rather than hammer a project that is already out of budget.
+
+Envelopes that hit the limit partway through keep the events already accepted. The SDK retries
+the whole envelope, and the event ids it already delivered deduplicate on the way back in.
+
+## Verify it works
+
+<Steps>
+  <Step title="Send something on purpose">
+    ```python
+    sentry_sdk.capture_message("hello from thermite")
+    ```
+  </Step>
+  <Step title="Check the project">
+    The issue appears on the project's issue list within a second or two. If it does not, the
+    project's **Outcomes** tell you whether the event was rejected, over quota, or never arrived.
+  </Step>
+</Steps>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Introduction" icon="book-open" href="/docs/getting-started/introduction">
+    How the triage loop hands work to your coding agent.
+  </Card>
+  <Card title="Authentication" icon="lock" href="/docs/guides/authentication">
+    API keys for agents and the OIDC login for humans.
+  </Card>
+</CardGroup>

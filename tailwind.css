@@ -1,0 +1,413 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@plugin "daisyui";
+
+/* ── Molten palette ──
+   Orange primary and gold secondary over a warm charcoal base — the material
+   the product is named after. Depth shadows are disabled (--depth: 0) so all
+   elevation is handled by the custom box-shadows in assets/main.css.
+
+   Hue assignment is load-bearing, not decorative. This is an error tracker:
+   red means error and gold means warning on every screen, and primary buttons
+   sit right next to both. So the warm hues are spaced deliberately —
+   error ~18° (rose-red) → primary ~47° (orange) → warning ~78° (gold) — and
+   `error` was moved off the old washed brick red specifically so it reads as
+   its own signal beside an orange button rather than a dimmer version of it.
+   Do not close those gaps.
+
+   `accent` stays cyan on purpose. It is the only cool hue left, and without a
+   counterpoint the whole UI collapses into one orange wash. */
+
+@plugin "daisyui/theme" {
+    name: "dark";
+    default: true;
+    prefersdark: true;
+    color-scheme: dark;
+    --color-base-100: #0c0b0a;
+    --color-base-200: #15130f;
+    --color-base-300: #241f19;
+    --color-base-content: #f0ece7;
+    --color-primary: #ff7a2b;
+    --color-primary-content: #240d00;
+    --color-secondary: #ffb020;
+    --color-secondary-content: #2a1c00;
+    --color-accent: #22d3ee;
+    --color-accent-content: #04212a;
+    --color-neutral: #2a241e;
+    --color-neutral-content: #f0ece7;
+    --color-info: #38bdf8;
+    --color-info-content: #04212a;
+    --color-success: #4ade80;
+    --color-success-content: #052b16;
+    --color-warning: #e8b04a;
+    --color-warning-content: #2a1d05;
+    --color-error: #f2555f;
+    --color-error-content: #2a0509;
+    --radius-box: 0.75rem;
+    --radius-field: 0.5rem;
+    --depth: 0;
+}
+
+@plugin "daisyui/theme" {
+    name: "light";
+    color-scheme: light;
+    --color-base-100: #faf8f6;
+    --color-base-200: #f3efea;
+    --color-base-300: #e3dad2;
+    --color-base-content: #1a1512;
+    /* Light-mode primary cannot be the vivid orange the dark theme uses: DaisyUI
+       spends one token on both button fills and `text-primary` link ink, and a
+       bright orange link on a near-white page lands around 2.9:1. This is the
+       most chromatic orange that still clears 4.5:1 as ink *and* behind white
+       button text. */
+    --color-primary: #c2410c;
+    --color-primary-content: #ffffff;
+    --color-secondary: #b45309;
+    --color-secondary-content: #ffffff;
+    --color-accent: #0891b2;
+    --color-accent-content: #ffffff;
+    --color-neutral: #cbc2ba;
+    --color-neutral-content: #1a1512;
+    --color-info: #0284c7;
+    --color-info-content: #ffffff;
+    --color-success: #16a34a;
+    --color-success-content: #ffffff;
+    /* Light-mode error and warning are both darker than their dark-mode twins, and
+       that is about lightness rather than hue. Hue spacing is what a *sighted* reader
+       uses to tell an orange Save from a red Delete; a deuteranopic reader has only
+       lightness, and at the first attempt light primary and error landed 1.03:1 apart
+       — the two buttons in the danger zone simulated to the same olive swatch. These
+       values put ~1.5:1 between primary and error, and they also drag `text-error`
+       and the warning badge back over AA, which they had been failing. */
+    --color-warning: #a86814;
+    --color-warning-content: #ffffff;
+    --color-error: #a11226;
+    --color-error-content: #ffffff;
+    --radius-box: 0.75rem;
+    --radius-field: 0.5rem;
+    --depth: 0;
+}
+
+@source "./src/**/*.{rs,html,css}";
+@source "./crates/**/*.{rs,html,css}";
+@source "./safelist-docs-kit.html";
+
+/* ── Typography ──
+   System sans stack for body text; Space Grotesk (self-hosted variable woff2,
+   @font-face in main.rs) is the display face for headings and the wordmark.
+   Headings get tight tracking and the whole page is antialiased for a
+   crisper, more premium render. */
+
+@theme {
+    --font-sans:
+        ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+    --font-display:
+        "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+        Roboto, sans-serif;
+    --font-mono:
+        ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    letter-spacing: -0.025em;
+}
+
+h1,
+h2,
+h3 {
+    font-family: var(--font-display);
+}
+
+/* ── Card hover lift ──
+   Static div cards opt in with `.card-hover`; anchor/button cards lift by
+   default. Resting border + shadow live in assets/main.css (.card-elevated). */
+
+.card {
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease,
+        border-color 0.2s ease;
+}
+
+[data-theme="dark"] .card.bg-base-200 {
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] a.card:hover,
+[data-theme="dark"] button.card:hover,
+[data-theme="dark"] .card-hover:hover {
+    transform: translateY(-3px);
+    box-shadow:
+        0 8px 24px rgba(0, 0, 0, 0.34),
+        0 0 0 1px oklch(0.75 0.17 47 / 0.22);
+    border-color: oklch(0.75 0.17 47 / 0.38);
+}
+
+[data-theme="light"] a.card:hover,
+[data-theme="light"] button.card:hover,
+[data-theme="light"] .card-hover:hover {
+    transform: translateY(-3px);
+    box-shadow:
+        0 1px 2px rgba(26, 21, 18, 0.05),
+        0 6px 16px rgba(189, 67, 9, 0.12),
+        0 0 0 1px oklch(0.58 0.16 47 / 0.18);
+    border-color: oklch(0.58 0.16 47 / 0.3);
+}
+
+a.card:active,
+button.card:active,
+.card-hover:active {
+    transform: translateY(-1px);
+    transition-duration: 0.1s;
+}
+
+/* ── Fade-up entrance ── */
+
+@keyframes fade-up {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-up {
+    animation: fade-up 0.4s ease-out both;
+}
+
+/* ── Toast enter / exit ── */
+
+@keyframes toast-in {
+    from {
+        transform: translateX(calc(100% + 1rem)) scale(0.97);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes toast-out {
+    from {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(calc(100% + 1rem)) scale(0.95);
+        opacity: 0;
+    }
+}
+
+.animate-toast-in {
+    animation: toast-in 0.4s cubic-bezier(0.21, 1.02, 0.73, 1);
+}
+
+.animate-toast-out {
+    animation: toast-out 0.25s ease-in forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @keyframes toast-in {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+    @keyframes toast-out {
+        from {
+            opacity: 1;
+        }
+        to {
+            opacity: 0;
+        }
+    }
+}
+
+/* ── Skeleton shimmer ── */
+
+@keyframes skeleton-shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.skeleton-shimmer {
+    background: linear-gradient(
+        90deg,
+        oklch(0.24 0.012 60 / 0.4) 25%,
+        oklch(0.34 0.02 60 / 0.5) 50%,
+        oklch(0.24 0.012 60 / 0.4) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+    border-radius: 0.25rem;
+}
+
+/* ── Card child micro-interactions ── */
+
+.card:hover .badge {
+    transform: scale(1.05);
+    transition: transform 0.2s ease;
+}
+
+.card:hover .icon-animate {
+    transform: rotate(-5deg) scale(1.1);
+    transition: transform 0.2s ease;
+}
+
+/* ── Landing hero ── */
+
+/* Gold → orange → ember, the temperature gradient of the burn itself. */
+.landing-gradient-text {
+    background: linear-gradient(
+        135deg,
+        oklch(0.86 0.15 85) 0%,
+        oklch(0.72 0.19 47) 50%,
+        oklch(0.66 0.2 30) 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.landing-hero-glow {
+    position: absolute;
+    top: -10rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40rem;
+    height: 40rem;
+    background: radial-gradient(
+        circle,
+        oklch(0.68 0.19 45 / 0.18) 0%,
+        oklch(0.62 0.17 30 / 0.09) 40%,
+        transparent 70%
+    );
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Masked grid backdrop — faint guideline texture that fades toward the edges */
+.landing-hero-grid {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-size: 56px 56px;
+    -webkit-mask-image: radial-gradient(
+        ellipse 60% 50% at 50% 0%,
+        #000 35%,
+        transparent 78%
+    );
+    mask-image: radial-gradient(
+        ellipse 60% 50% at 50% 0%,
+        #000 35%,
+        transparent 78%
+    );
+}
+
+[data-theme="dark"] .landing-hero-grid {
+    background-image:
+        linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+}
+
+[data-theme="light"] .landing-hero-grid {
+    background-image:
+        linear-gradient(to right, rgba(26, 21, 18, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(26, 21, 18, 0.05) 1px, transparent 1px);
+}
+
+/* Staggered entrance for hero elements */
+@keyframes hero-rise {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.landing-hero-rise {
+    animation: hero-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hero-delay-1 {
+    animation-delay: 0.06s;
+}
+.hero-delay-2 {
+    animation-delay: 0.14s;
+}
+.hero-delay-3 {
+    animation-delay: 0.22s;
+}
+.hero-delay-4 {
+    animation-delay: 0.3s;
+}
+
+/* ── Touch-friendly overrides ── */
+
+@media (hover: none) and (pointer: coarse) {
+    a.card:hover,
+    button.card:hover,
+    .card-hover:hover {
+        transform: none;
+        box-shadow: none;
+    }
+
+    a.card:active,
+    button.card:active,
+    .card-hover:active {
+        transform: scale(0.98);
+        transition-duration: 0.1s;
+    }
+
+    .btn-circle {
+        min-width: 44px;
+        min-height: 44px;
+    }
+}
+
+/* ── Mobile typography ── */
+
+@media (max-width: 640px) {
+    .card .card-body {
+        padding: 1rem;
+    }
+}
+
+/* ── Safe area for notched devices ── */
+
+.safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .landing-hero-rise,
+    .animate-fade-up {
+        animation: none;
+    }
+}

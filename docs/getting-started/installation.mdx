@@ -1,0 +1,172 @@
+---
+title: Installation
+description: Run Thermite locally — Postgres, Mailpit, and your first event
+sidebarTitle: Installation
+---
+
+## Prerequisites
+
+- **Rust** (latest stable) — [rustup.rs](https://rustup.rs)
+- **Dioxus CLI** — `curl -sSL http://dioxus.dev/install.sh | sh`
+- **Bun** — [bun.sh](https://bun.sh), for Tailwind CSS
+- **Docker** — for PostgreSQL and Mailpit
+- **just** — `cargo install just`
+
+## Quick start
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/hauju/thermite-rs.git
+    cd thermite-rs
+    ```
+  </Step>
+  <Step title="Bootstrap your env file">
+    ```bash
+    just bootstrap
+    ```
+
+    Copies `.env.example` to `.env` and fills in a freshly generated `SESSION_SECRET`. It refuses
+    to overwrite an existing `.env`.
+
+    The defaults work as-is for local development. The one group you will need to fill in is
+    FerrisKey — see [Authentication](/docs/guides/authentication), or set `DEV_LOGIN=true` to skip
+    it entirely while you are just looking around.
+  </Step>
+  <Step title="Start the infrastructure">
+    ```bash
+    just init
+    ```
+
+    Brings up **PostgreSQL 18** on `5433` and **Mailpit** with SMTP on `1028` and its web UI on
+    `8028`. The ports are offset off the defaults so the stack runs alongside other projects'
+    containers, and every one is bound to `127.0.0.1` — a dev database with default credentials is
+    never reachable from the network.
+
+    Migrations live in `migrations/`, are embedded in the binary, and apply automatically on first
+    boot. There is no separate migrate step.
+  </Step>
+  <Step title="Install frontend dependencies">
+    ```bash
+    bun install
+    ```
+  </Step>
+  <Step title="Run the development server">
+    ```bash
+    just serve
+    ```
+
+    Thermite comes up on `http://localhost:8080`, hot-reloading on change and compiling Tailwind
+    as it goes.
+  </Step>
+</Steps>
+
+<Note>
+**The first account owns everything.** With no allowlist configured, only the first account may
+register on a fresh instance, and registration closes as soon as any user exists. Register
+yours before you expose the instance to anything.
+</Note>
+
+## Send it a first event
+
+Create a project in the dashboard, copy its DSN from **Project settings → DSN keys**, and point
+any Sentry SDK at it. Thermite speaks Sentry's wire protocol, so there is nothing to install
+beyond the SDK you would have used anyway — see the [SDKs guide](/docs/guides/sdks).
+
+## Project commands
+
+| Command | Description |
+| --- | --- |
+| `just serve` | Development server with hot reload |
+| `just init` | Start Postgres and Mailpit |
+| `just check` | Everything CI runs: `fmt`, `clippy`, `test` |
+| `just test` | Workspace tests, plus the app crate under its `server` feature |
+| `just clippy` | `cargo clippy --workspace --all-targets -- -D warnings` |
+| `just prepare` | Regenerate the committed sqlx query metadata |
+| `just tw` | Build Tailwind CSS manually |
+| `just icons` | Re-render the favicon and PWA icons from their SVG sources |
+
+<Warning>
+The app crate's default feature builds the wasm client, so plain `cargo test` does not test the
+server. Anything server-side needs `--no-default-features --features server`, which is what
+`just test` does for you.
+</Warning>
+
+## Environment variables
+
+<AccordionGroup>
+  <Accordion title="Core">
+    - `DATABASE_URL` — PostgreSQL connection string
+    - `DATABASE_MAX_CONNECTIONS` / `DATABASE_INGEST_MAX_CONNECTIONS` — pool sizes. Ingest runs on
+      its own pool so an error storm backpressures the SDKs instead of stalling logins and the
+      dashboard; background sweepers get a separate 2-connection pool.
+    - `BASE_URL` — public URL of the instance. Also the OAuth issuer and resource identifier
+      advertised to MCP clients, so in production this must be the public HTTPS URL.
+    - `SESSION_SECRET` — 64+ byte hex secret for signing session cookies
+    - `SECURE_COOKIES` — `true` in production (HTTPS)
+    - `TRUST_PROXY_HEADERS` — `true` behind a reverse proxy, so rate limiting trusts the forwarded
+      client IP
+  </Accordion>
+  <Accordion title="Authentication">
+    - `FERRISKEY_URL` — FerrisKey base API URL
+    - `FERRISKEY_ISSUER_URL` — _(optional)_ public OIDC issuer base URL, falls back to
+      `FERRISKEY_URL`
+    - `FERRISKEY_REALM` / `FERRISKEY_CLIENT_ID` / `FERRISKEY_CLIENT_SECRET`
+    - `THERMITE_ALLOWED_EMAILS` / `THERMITE_ALLOWED_EMAIL_DOMAINS` — who may self-register
+    - `DEV_LOGIN` — a local-only login shortcut. Compiled out of release builds entirely.
+    - `ENCRYPTION_KEY` — _(optional)_ 32-byte base64 key for AES-256-GCM
+  </Accordion>
+  <Accordion title="Email (SMTP)">
+    - `SMTP_HOST` / `SMTP_PORT` / `SMTP_FROM` / `SMTP_USER` / `SMTP_PASSWORD`
+    - `SMTP_SECURITY` — `tls` (465), `starttls` (587), or `none`. Unset means `none` for
+      localhost/Mailpit and `tls` everywhere else.
+  </Accordion>
+  <Accordion title="Ingest tuning">
+    - `THERMITE_MAX_ENVELOPE_BYTES` — hard cap on a request body, before decompression
+    - `THERMITE_RATE_LIMIT_PER_MINUTE` — per-project ingest quota, events per rolling minute
+    - `THERMITE_SCRUB_FIELDS` — extra payload keys to scrub on top of the built-in denylist.
+      Scrubbing happens before the event is stored, so these values are never written.
+  </Accordion>
+  <Accordion title="Retention">
+    - `THERMITE_RETENTION_DAYS` / `THERMITE_MAX_EVENTS_PER_PROJECT` — events are dropped by
+      whichever rule bites first. Age alone does not bound disk (a traffic spike fills the window),
+      so the per-project cap is the rule that actually protects you.
+    - `THERMITE_RETENTION_BATCH` — rows per delete statement, so a sweep cannot hold locks long
+      enough to stall ingest
+
+    Rollups, issue rows and agent analyses survive eviction, so counts and charts stay true after
+    the individual payloads are gone.
+  </Accordion>
+  <Accordion title="Alerting">
+    - `THERMITE_ALERT_EMAIL` — comma-separated recipients
+    - `THERMITE_ALERT_WEBHOOK` — one JSON object POSTed per alert
+
+    Instance-wide defaults; a project can override both with its own routing. With neither set,
+    alerting is off.
+  </Accordion>
+</AccordionGroup>
+
+## Changing the database schema
+
+Queries use `sqlx`'s compile-time-checked macros, so column names and types are verified against
+the schema when you build. The metadata lives in `.sqlx/` and is committed, which is what lets a
+fresh clone build with no database running.
+
+<Warning>
+After editing any SQL or adding a migration, regenerate the metadata:
+
+```bash
+just init      # a database must be running
+just prepare
+```
+
+Editing a query without re-preparing fails the next build. Editing a **migration** without
+re-preparing does not — cached entries are keyed by the query text, so untouched queries keep
+matching now-stale metadata and compile fine, failing only at runtime. CI guards this by building
+against a real database.
+</Warning>
+
+<Note>
+Migrations are immutable once applied: sqlx records a checksum, so editing an applied file — even
+a comment — fails the next boot. Add a new numbered migration instead.
+</Note>

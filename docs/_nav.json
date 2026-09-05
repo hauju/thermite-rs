@@ -1,0 +1,21 @@
+{
+  "tabs": ["Documentation"],
+  "groups": [
+    {
+      "group": "Getting Started",
+      "tab": "Documentation",
+      "pages": [
+        "getting-started/introduction",
+        "getting-started/installation"
+      ]
+    },
+    {
+      "group": "Guides",
+      "tab": "Documentation",
+      "pages": [
+        "guides/sdks",
+        "guides/authentication"
+      ]
+    }
+  ]
+}

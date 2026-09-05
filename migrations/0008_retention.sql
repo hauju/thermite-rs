@@ -1,0 +1,11 @@
+-- Index for the retention sweep.
+--
+-- Both retention rules walk events per project, newest to oldest: the age rule needs "everything
+-- this project received before T", the quota rule needs "everything past the newest N". A composite
+-- on (project_id, received_at desc) serves both, and lets the quota rule find its cutoff row by
+-- offset without scanning the table.
+--
+-- Keyed on `received_at`, not `timestamp`: `timestamp` is client-supplied, so an SDK sending
+-- 1970 would have its events evicted immediately and one sending 2099 would keep them forever.
+-- `received_at` is when we actually took on the storage cost.
+create index events_project_received_idx on events (project_id, received_at desc, id desc);

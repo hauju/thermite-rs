@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO oauth_client_approvals (user_id, client_id) VALUES ($1, $2)\n         ON CONFLICT (user_id, client_id) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6446b6ed4ee42d1831135305555408dbfc708362df3ffd3474e8168355c9a933"
+}

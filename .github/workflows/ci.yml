@@ -1,0 +1,181 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUSTFLAGS: -D warnings
+
+jobs:
+  check:
+    name: fmt / clippy / machete
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          # rust-toolchain.toml pins the channel; this just ensures components are present.
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Node deps
+        run: bun install --frozen-lockfile
+
+      - name: Build Tailwind
+        run: bunx @tailwindcss/cli -i tailwind.css -o assets/tailwind.css
+
+      - name: cargo fmt
+        run: cargo fmt --all --check
+
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Install cargo-machete
+        uses: bnjbvr/cargo-machete@main
+
+      - name: cargo machete
+        run: cargo machete
+
+  test:
+    name: unit tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: thermite
+          POSTGRES_PASSWORD: thermite
+          POSTGRES_DB: thermite
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U thermite -d thermite"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      # `#[sqlx::test]` connects here to create a database per test case.
+      DATABASE_URL: postgres://thermite:thermite@localhost:5432/thermite
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Node deps
+        run: bun install --frozen-lockfile
+
+      # The app crate's asset!() calls fail to compile if the stylesheet is
+      # absent, and it is generated rather than committed.
+      - name: Build Tailwind
+        run: bunx @tailwindcss/cli -i tailwind.css -o assets/tailwind.css
+
+      - name: cargo test (workspace crates)
+        run: cargo test --workspace --exclude thermite
+
+      # The app crate is excluded above because a bare --workspace build resolves
+      # it with its default (wasm client) feature, which can't run as a test
+      # binary. Its suite is mostly database-backed: `#[sqlx::test]` gives each
+      # case its own freshly migrated database on the service below, so cases
+      # stay isolated and can run in parallel.
+      - name: cargo test (app crate, server feature)
+        run: cargo test -p thermite --no-default-features --features server
+
+  audit:
+    name: cargo audit (vulnerable deps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: cargo audit
+        run: cargo audit
+
+  # The other jobs build offline against the committed `.sqlx` metadata, which
+  # catches a query whose text changed without a matching `cargo sqlx prepare`.
+  # It does NOT catch the other direction: cached entries are keyed by a hash of
+  # the SQL string, so changing the *schema* while leaving a query untouched
+  # leaves a stale entry that still matches and still compiles — then fails at
+  # runtime. Building against a real database closes that gap, because the
+  # macros re-validate every query against the live schema.
+  schema:
+    name: queries match the schema
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: thermite
+          POSTGRES_PASSWORD: thermite
+          POSTGRES_DB: thermite
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U thermite -d thermite"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://thermite:thermite@localhost:5432/thermite
+      # `.cargo/config.toml` defaults this to true so a fresh clone builds with
+      # no database. This job exists precisely to check against a real one.
+      SQLX_OFFLINE: "false"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Node deps
+        run: bun install --frozen-lockfile
+
+      # asset!() requires the file to exist, even for a server-only build.
+      - name: Build Tailwind
+        run: bunx @tailwindcss/cli -i tailwind.css -o assets/tailwind.css
+
+      # Applied with psql rather than sqlx-cli: only the resulting schema matters
+      # here, not the migration bookkeeping, and this avoids installing the CLI.
+      - name: Apply migrations
+        run: |
+          for f in migrations/*.sql; do
+            echo "applying $f"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - name: Verify every query against the live schema
+        run: cargo check --no-default-features --features server

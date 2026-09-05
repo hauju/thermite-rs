@@ -1,0 +1,6 @@
+[toolchain]
+# Pinned for reproducible builds — no MSRV requires this (dioxus needs only 1.83).
+# Bump deliberately, and keep .github/workflows/*.yml in step.
+# Note: `rustup target add` applies to the DEFAULT toolchain; cross-targets need
+# `--toolchain 1.97.1` or they silently install where the build won't see them.
+channel = "1.97.1"

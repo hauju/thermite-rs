@@ -1,0 +1,6 @@
+# Ignore everything by default
+*
+
+# Only include the pre-built dx bundle output (built in CI before docker build)
+# The path segment is the crate name — it moved when this stopped being the template.
+!target/dx/thermite/release/web/
