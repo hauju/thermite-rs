@@ -142,15 +142,21 @@ fn db_timeout_event(seq: usize) -> Value {
 }
 
 fn log_message_event(seq: usize) -> Value {
-    let keys = ["a41f", "b72c", "c93d"];
+    // The id varies, in a shape the normalizer folds — a UUID after a space. `evt_a41f` did not:
+    // no rule matches a short hex tail, and the `_` glues it to the prefix so even the int rule's
+    // word boundary never fires, which split this demo into one issue per click.
+    let ids = [
+        "6f1c2e6a-9b7d-4c3e-8a21-5d0f7b9e4c11",
+        "b2d94f10-3e6a-4f8c-9d57-1a6e0c2b8f33",
+        "e7a05c3d-51f2-4b9e-a8c4-9f2d6e1b7a55",
+    ];
     json!({
         "level": "error",
         "transaction": "POST /webhooks/stripe",
         "tags": { "source": "webhook" },
-        // The id varies; the normalizer parameterizes it so these stay one issue.
         "message": format!(
-            "failed to verify webhook signature for event evt_{} after 3 attempts",
-            keys[seq % keys.len()]
+            "failed to verify webhook signature for event {} after 3 attempts",
+            ids[seq % ids.len()]
         ),
     })
 }
@@ -260,6 +266,19 @@ mod tests {
     #[test]
     fn an_unknown_kind_is_refused() {
         assert!(payload("nonsense", "production", "1.0.0", 0).is_none());
+    }
+
+    /// The kind's own description promises this: the event ids differ, the issue does not.
+    #[test]
+    fn log_messages_with_different_ids_group_into_one_issue() {
+        use thermite_core::protocol::normalize::normalize_message_for_grouping;
+        let normalized: std::collections::BTreeSet<String> = (0..3)
+            .map(|seq| {
+                let event = payload("log_message", "production", "1.0.0", seq).unwrap();
+                normalize_message_for_grouping(event["message"].as_str().unwrap())
+            })
+            .collect();
+        assert_eq!(normalized.len(), 1, "{normalized:?}");
     }
 
     #[test]
