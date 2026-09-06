@@ -143,6 +143,11 @@ server. Anything server-side needs `--no-default-features --features server`, wh
       alert routing stay hidden, and nothing can be changed. Point it only at a project that
       receives synthetic or public data — the instance keeps it alive by raising a playground
       event into it every 10 to 30 minutes.
+    - `THERMITE_DEMO_URL` — where the landing page's "See the live demo" button goes when the demo
+      lives on another instance. Unset: the `THERMITE_DEMO_PROJECT` board here.
+    - `THERMITE_DEMO_AUTOLOGIN` — `true` makes `GET /demo` sign anyone in as the shared `demo`
+      user, with write access to every project. A public sandbox: run it on a throwaway
+      instance only.
   </Accordion>
   <Accordion title="Alerting">
     - `THERMITE_ALERT_EMAIL` — comma-separated recipients

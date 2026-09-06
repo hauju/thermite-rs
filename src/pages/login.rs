@@ -5,6 +5,7 @@ use auth::UserDataRefreshTrigger;
 
 use crate::UserAuthState;
 use crate::components::logo::ThermiteMark;
+use crate::errors_data::demo_autologin;
 use crate::routes::Route;
 
 /// Login page that wraps the auth crate's LoginPage component.
@@ -17,6 +18,14 @@ pub fn LoginPage(redirect_url: String) -> Element {
     use_effect(move || {
         if matches!(&*user_auth.read(), UserAuthState::Authenticated(_)) {
             nav.push(Route::Dashboard {});
+        }
+    });
+
+    // A public sandbox has no login form: it signs the visitor in itself.
+    let autologin = use_resource(|| async { demo_autologin().await.unwrap_or(false) });
+    use_effect(move || {
+        if autologin() == Some(true) {
+            let _ = document::eval("window.location.href = '/demo';");
         }
     });
 

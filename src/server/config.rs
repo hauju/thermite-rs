@@ -27,6 +27,12 @@ pub struct Config {
     /// Slug of the one project anyone may read without signing in — its board and issues, with
     /// the DSN and alert routing withheld and nothing writable. Unset: no anonymous reads.
     pub demo_project: Option<String>,
+    /// Whether `GET /demo` signs anyone in as the shared `demo` user. Projects are instance-wide,
+    /// so this makes every visitor a writer on all of them: a public sandbox, never a real one.
+    pub demo_autologin: bool,
+    /// Where the landing page's "See the live demo" button goes. Unset: this instance's
+    /// `demo_project` board, if there is one.
+    pub demo_url: Option<String>,
     /// Size of the interactive pool (dashboard, sessions, API, MCP).
     pub db_max_connections: u32,
     /// Size of the ingest pool — the ceiling on concurrent event digests.
@@ -82,6 +88,10 @@ impl Config {
                 "THERMITE_ALLOWED_EMAIL_DOMAINS",
             )),
             demo_project: get_env_optional("THERMITE_DEMO_PROJECT"),
+            demo_autologin: get_env_optional("THERMITE_DEMO_AUTOLOGIN")
+                .map(|v| v == "true")
+                .unwrap_or(false),
+            demo_url: get_env_optional("THERMITE_DEMO_URL"),
             db_max_connections: parse_env_or("DATABASE_MAX_CONNECTIONS", 10),
             db_ingest_max_connections: parse_env_or("DATABASE_INGEST_MAX_CONNECTIONS", 10),
         })

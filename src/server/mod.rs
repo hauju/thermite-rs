@@ -6,6 +6,7 @@ pub mod config;
 pub mod db;
 pub mod demo_events;
 pub mod demo_feed;
+pub mod demo_login;
 pub mod health;
 pub mod llms;
 pub mod mcp;

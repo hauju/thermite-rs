@@ -5,7 +5,7 @@ use crate::UserAuthState;
 use crate::components::command_palette::CommandPalette;
 use crate::components::logo::ThermiteMark;
 use crate::components::theme_toggle::ThemeToggle;
-use crate::errors_data::demo_project;
+use crate::errors_data::{demo_autologin, demo_project};
 use crate::routes::Route;
 use crate::version::{UpdateBanner, use_build_check, use_reload_when_stale};
 
@@ -30,6 +30,7 @@ pub fn DashboardShell() -> Element {
     let mut palette = use_signal(|| false);
     let route = use_route::<Route>();
     let demo = use_resource(|| async { demo_project().await.ok().flatten() });
+    let autologin = use_resource(|| async { demo_autologin().await.unwrap_or(false) });
     use_build_check();
     use_reload_when_stale();
 
@@ -39,11 +40,21 @@ pub fn DashboardShell() -> Element {
         let anonymous = matches!(&*user_auth.read(), UserAuthState::NotAuthenticated);
         let demo = demo.read();
         let Some(demo) = &*demo else { return };
+        let Some(autologin) = *autologin.read() else {
+            return;
+        };
         let route = router().current::<Route>();
         if anonymous && !visitor_route(&route, demo.as_deref()) {
-            nav.push(Route::LoginPage {
-                redirect_url: "/dashboard".to_string(),
-            });
+            if autologin {
+                // A public sandbox signs the visitor in itself and brings them back here.
+                let _ = document::eval(
+                    "window.location.href = '/demo?next=' + encodeURIComponent(location.pathname + location.search);",
+                );
+            } else {
+                nav.push(Route::LoginPage {
+                    redirect_url: "/dashboard".to_string(),
+                });
+            }
         }
     });
 

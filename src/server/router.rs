@@ -110,7 +110,18 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
     let global_rate_limiter = server::security::IpRateLimiter::per_minute(3000, trust_proxy);
     let pool = app_state.db.pool.clone();
 
+    // Public sandbox: GET /demo signs anyone in as the shared demo user (see server::demo_login).
+    let demo_login = if app_state.config.demo_autologin {
+        tracing::warn!(
+            "THERMITE_DEMO_AUTOLOGIN is set: GET /demo signs anyone in as the shared demo user, with write access to every project"
+        );
+        server::demo_login::demo_login_router()
+    } else {
+        Router::new()
+    };
+
     base.merge(auth_routes)
+        .merge(demo_login)
         // OAuth 2.1 authorization server + MCP connector (see src/server/oauth, mcp).
         .merge(server::oauth::oauth_router(pool.clone(), trust_proxy))
         .merge(server::mcp::mcp_router(app_state.clone(), trust_proxy))

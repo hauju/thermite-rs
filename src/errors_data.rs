@@ -101,6 +101,28 @@ pub async fn demo_project() -> Result<Option<String>, ServerFnError> {
         .clone())
 }
 
+/// Where "See the live demo" goes: a separate demo instance when one is configured, else this
+/// instance's public project, else nowhere.
+#[post("/api/errors/demo/link")]
+pub async fn demo_link() -> Result<Option<String>, ServerFnError> {
+    let config = &crate::server::state::AppState::global().config;
+    Ok(config.demo_url.clone().or_else(|| {
+        config
+            .demo_project
+            .as_ref()
+            .map(|slug| format!("/projects/{slug}"))
+    }))
+}
+
+/// Whether this instance signs visitors in by itself (`GET /demo`), so the shell and the login
+/// page send an anonymous visitor there instead of to the identity provider.
+#[post("/api/errors/demo/autologin")]
+pub async fn demo_autologin() -> Result<bool, ServerFnError> {
+    Ok(crate::server::state::AppState::global()
+        .config
+        .demo_autologin)
+}
+
 /// Every project with its attention flags, for the dashboard landing page.
 #[post("/api/errors/overview", session: auth::UserSession)]
 pub async fn project_overview() -> Result<Vec<ProjectOverviewRow>, ServerFnError> {

@@ -53,6 +53,8 @@ pub fn test_state(db: Database) -> AppState {
         allowed_registration_emails: Vec::new(),
         allowed_registration_domains: Vec::new(),
         demo_project: None,
+        demo_autologin: false,
+        demo_url: None,
         db_max_connections: 10,
         db_ingest_max_connections: 10,
     };

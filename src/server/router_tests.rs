@@ -16,11 +16,23 @@ async fn serve(pool: PgPool) -> String {
 /// keys off the deployment's public hostname rather than the loopback
 /// address the test listener actually binds.
 async fn serve_with_base_url(pool: PgPool, base_url: Option<&str>) -> String {
+    serve_with_state(pool, Router::new(), |state| {
+        if let Some(url) = base_url {
+            state.config.base_url = url.to_string();
+        }
+    })
+    .await
+}
+
+/// Serve with the state adjusted first, for behaviour behind a configuration flag.
+async fn serve_with_state(
+    pool: PgPool,
+    base: Router,
+    adjust: impl FnOnce(&mut AppState),
+) -> String {
     let mut state = test_state(Database::from_pool(pool));
-    if let Some(url) = base_url {
-        state.config.base_url = url.to_string();
-    }
-    let router = build(Router::new(), state).await;
+    adjust(&mut state);
+    let router = build(base, state).await;
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -577,4 +589,62 @@ async fn discovery_traffic_does_not_consume_the_token_budget(pool: PgPool) {
         oauth_rows, 0,
         "discovery must not touch the shared OAuth counter"
     );
+}
+
+#[sqlx::test]
+async fn demo_login_does_not_exist_unless_enabled(pool: PgPool) {
+    let base = serve(pool).await;
+    let res = client().get(format!("{base}/demo")).send().await.unwrap();
+    assert_eq!(res.status(), 404);
+}
+
+#[sqlx::test]
+async fn demo_login_signs_a_visitor_in_and_returns_them_to_where_they_were(pool: PgPool) {
+    let db = pool.clone();
+    // Server functions are registered by `main`, not `build`, so a route that needs the
+    // session stands in for them.
+    let whoami = Router::new().route(
+        "/whoami",
+        axum::routing::get(|session: auth::UserSession| async move {
+            session
+                .data()
+                .map(|data| data.email)
+                .map_err(|_| axum::http::StatusCode::UNAUTHORIZED)
+        }),
+    );
+    let base = serve_with_state(pool, whoami, |state| state.config.demo_autologin = true).await;
+
+    let res = client()
+        .get(format!("{base}/demo?next=/issues/42"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 303);
+    assert_eq!(res.headers()["location"], "/issues/42");
+    let cookie = res.headers()["set-cookie"]
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_string();
+
+    // The session is real: a request that needs one is answered as the demo user.
+    let res = client()
+        .get(format!("{base}/whoami"))
+        .header("cookie", &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    assert_eq!(res.text().await.unwrap(), "demo@thermite.rs");
+
+    // Signing in twice is the same account, not a second one.
+    let again = client().get(format!("{base}/demo")).send().await.unwrap();
+    assert_eq!(again.headers()["location"], "/dashboard");
+    let users: i64 = sqlx::query_scalar("select count(*) from users where sub = 'demo'")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(users, 1);
 }

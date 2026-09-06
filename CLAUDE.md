@@ -407,6 +407,14 @@ untouched. The rule is a pure function with tests; keep it that way. While the f
 `server::demo_feed` raises a playground event into that project every 10 to 30 minutes at the
 release it last saw, so the demo never goes flat and never reads as a new deploy.
 
+**Or the whole instance can be the demo.** `THERMITE_DEMO_AUTOLOGIN` mounts `GET /demo`
+(`src/server/demo_login.rs`), which signs anyone in as the shared `demo` user and sends them on
+to `?next=` (local paths only, or `/dashboard`). Projects are instance-wide, so every visitor is
+a writer on all of them — that is what demo.thermite.rs is for and what no other instance should
+ever set; the route does not exist without the flag and boot warns. The shell and the login page
+send an anonymous visitor to `/demo` instead of the identity provider while it is on, and
+`THERMITE_DEMO_URL` points the landing page's "See the live demo" button at that instance.
+
 Pages use `use_resource` rather than `use_server_future`, deliberately: these are authenticated views
 behind skeletons, and blocking SSR on database queries buys nothing. There is no hydration mismatch
 because both server and client start from `None`.
