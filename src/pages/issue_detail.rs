@@ -339,8 +339,8 @@ fn AnalysisCard(analysis: Analysis) -> Element {
     let confidence_class = match confidence.as_str() {
         "high" => "badge-success",
         "medium" => "badge-warning",
-        "low" => "badge-ghost",
-        _ => "badge-ghost",
+        // Not `badge-ghost`: on a card it is the card's own colour, i.e. invisible.
+        _ => "badge-neutral",
     };
 
     rsx! {

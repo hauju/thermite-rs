@@ -388,7 +388,8 @@ fn monitor_badge(status: Option<&str>) -> &'static str {
         Some("ok") => "badge-success",
         Some("missed") | Some("timeout") => "badge-error",
         Some("error") => "badge-warning",
-        _ => "badge-ghost",
+        // Not `badge-ghost`: on a card it is the card's own colour, i.e. invisible.
+        _ => "badge-neutral",
     }
 }
 
@@ -405,7 +406,7 @@ fn IssueCard(row: IssueRow) -> Element {
                     div { class: "flex items-center gap-2 flex-wrap",
                         span { class: "badge badge-sm {badge}", "{row.level}" }
                         if row.status != "unresolved" {
-                            span { class: "badge badge-sm badge-ghost", "{row.status}" }
+                            span { class: "badge badge-sm badge-neutral", "{row.status}" }
                         }
                         // Ties the header's "New" count to the rows it is counting.
                         if row.is_new {
