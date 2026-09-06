@@ -128,7 +128,7 @@ pub struct ListIssues {
     /// or `component:worker` (events ingested through a labeled DSN key).
     #[serde(default)]
     pub tag: Option<String>,
-    /// `events` for the highest-volume issues first, `last_seen` (default) for the most recent.
+    /// `events` for the highest-volume issues first, `users` for the most distinct users hit, `last_seen` (default) for the most recent.
     #[serde(default)]
     pub sort: Option<String>,
     /// Max issues to return. Capped at 100.
@@ -276,7 +276,7 @@ impl McpTools {
     }
 
     #[tool(
-        description = "List issues in a project, each with a 24-hour sparkline. Sorted by most recent activity by default; pass sort=events for the highest-volume issues first, which is usually what you want when deciding what to fix. Filter with environment=production or tag=key:value. Returns titles, culprits and counts — use get_issue for the stack trace."
+        description = "List issues in a project, each with a 24-hour sparkline. Sorted by most recent activity by default; pass sort=events for the highest-volume issues first, which is usually what you want when deciding what to fix, or sort=users for the issues hitting the most distinct users. Filter with environment=production or tag=key:value. Returns titles, culprits and counts — use get_issue for the stack trace."
     )]
     pub async fn list_issues(
         &self,

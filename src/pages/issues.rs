@@ -451,7 +451,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                         }
                     }
                     div { class: "join",
-                        for (value , label) in [("events", "most events"), ("last_seen", "most recent")] {
+                        for (value , label) in [("events", "most events"), ("users", "most users"), ("last_seen", "most recent")] {
                             button {
                                 class: if sort() == value { "join-item btn btn-sm btn-primary" } else { "join-item btn btn-sm" },
                                 onclick: move |_| {

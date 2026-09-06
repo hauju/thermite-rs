@@ -393,6 +393,46 @@ async fn lists_the_events_of_an_issue(db: PgPool) {
     );
 }
 
+/// 500 events on 400 users and 10,000 on one user are different problems; `sort=users` puts the
+/// first one first.
+#[sqlx::test(migrations = "../../migrations")]
+async fn sort_by_users_ranks_by_distinct_users_not_events(db: PgPool) {
+    let project_id = create_project(&db, "demo", PUBLIC_KEY).await;
+    // Wide: three events, three users.
+    for (i, user) in ["u1", "u2", "u3"].iter().enumerate() {
+        let mut event = error_event(&format!("{i}{}", "a".repeat(31)), "Wide", "many users");
+        event["user"] = json!({ "id": user });
+        ingest(&db, project_id, event).await;
+    }
+    // Loud: five events, one user.
+    for i in 0..5 {
+        let mut event = error_event(&format!("{i}{}", "b".repeat(31)), "Loud", "one user");
+        event["user"] = json!({ "id": "u9" });
+        ingest(&db, project_id, event).await;
+    }
+
+    let by_events = body_json(
+        send(
+            state(db.clone()),
+            get("/api/v1/projects/demo/issues?sort=events"),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(by_events[0]["exception_type"], json!("Loud"));
+
+    let by_users = body_json(
+        send(
+            state(db.clone()),
+            get("/api/v1/projects/demo/issues?sort=users"),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(by_users[0]["exception_type"], json!("Wide"), "{by_users}");
+    assert_eq!(by_users[0]["users_affected"], json!(3));
+}
+
 /// The dashboard's feed: what appeared or came back, not everything that is still broken.
 #[sqlx::test(migrations = "../../migrations")]
 async fn the_feed_lists_what_appeared_or_came_back_recently(db: PgPool) {

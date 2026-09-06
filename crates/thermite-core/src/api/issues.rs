@@ -23,7 +23,7 @@ pub struct IssueListQuery {
     environment: Option<String>,
     /// `key:value` — only issues that have events carrying this tag.
     tag: Option<String>,
-    /// `last_seen` (default) or `events`.
+    /// `last_seen` (default), `events` or `users`.
     sort: Option<String>,
     limit: Option<i64>,
     offset: Option<i64>,
@@ -44,16 +44,18 @@ fn parse_tag(tag: &str) -> AppResult<(String, String)> {
 
 /// How to order an issue list.
 ///
-/// `last_seen` answers "what just happened"; `events` answers "what is worst". Both are wanted, and
-/// recency alone is a poor default for triage — a three-event blip outranks a thousand-event outage
-/// whenever the blip fired more recently.
-const SORTS: [&str; 2] = ["last_seen", "events"];
+/// `last_seen` answers "what just happened"; `events` answers "what is worst"; `users` answers
+/// "what is worst for the most people" — 500 events on 400 users and 10,000 on one are different
+/// problems. All three are wanted, and recency alone is a poor default for triage — a three-event
+/// blip outranks a thousand-event outage whenever the blip fired more recently.
+const SORTS: [&str; 3] = ["last_seen", "events", "users"];
 
 fn order_by(sort: Option<&str>) -> AppResult<&'static str> {
     match sort.unwrap_or("last_seen") {
         "last_seen" => Ok("i.last_seen desc, i.id desc"),
         // Ties broken by recency, so equal-volume issues still read newest-first.
         "events" => Ok("i.times_seen desc, i.last_seen desc, i.id desc"),
+        "users" => Ok("i.users_affected desc, i.times_seen desc, i.last_seen desc, i.id desc"),
         other => Err(AppError::BadRequest(format!(
             "unknown sort {other:?}; expected one of {}",
             SORTS.join(", ")
