@@ -14,19 +14,43 @@ use crate::errors_data::{
     release_health,
 };
 use crate::models::errors::{IssueRow, MonitorRow, ProjectSummary, ReleaseHealthRow, level_class};
-use crate::routes::Route;
+use crate::routes::{IssueFilters, Route};
 
+/// `filters` is the URL's view of the state; the signals below are the live one, seeded from it
+/// on first render and mirrored back on every change.
 #[component]
-pub fn Issues(slug: String) -> Element {
-    let mut status = use_signal(|| "unresolved".to_string());
-    let mut query = use_signal(String::new);
-    let mut window = use_signal(|| "24h".to_string());
+pub fn Issues(slug: String, filters: IssueFilters) -> Element {
+    let seed = filters;
+    let mut status = use_signal(move || seed.status.unwrap_or_else(|| "unresolved".to_string()));
+    let mut query = use_signal(move || seed.q.unwrap_or_default());
+    let mut window = use_signal(move || seed.window.unwrap_or_else(|| "24h".to_string()));
     // Worst first, not newest first. The API defaults to `last_seen` to match Sentry, but for a
     // board that default buries a thousand-event outage under a three-event blip that happened to
     // fire more recently.
-    let mut sort = use_signal(|| "events".to_string());
-    let mut environment = use_signal(|| "all".to_string());
-    let mut component = use_signal(|| "all".to_string());
+    let mut sort = use_signal(move || seed.sort.unwrap_or_else(|| "events".to_string()));
+    let mut environment = use_signal(move || seed.env.unwrap_or_else(|| "all".to_string()));
+    let mut component = use_signal(move || seed.component.unwrap_or_else(|| "all".to_string()));
+
+    // Mirror the filters back into the URL, so a view survives a reload and can be shared or
+    // linked to from an alert. `replace` rather than `push`: every keystroke in the search box
+    // would otherwise become a history entry.
+    let nav = use_navigator();
+    use_effect({
+        let slug = slug.clone();
+        move || {
+            nav.replace(Route::Issues {
+                slug: slug.clone(),
+                filters: IssueFilters {
+                    status: Some(status()).filter(|v| v != "unresolved"),
+                    sort: Some(sort()).filter(|v| v != "events"),
+                    window: Some(window()).filter(|v| v != "24h"),
+                    env: Some(environment()).filter(|v| v != "all"),
+                    component: Some(component()).filter(|v| v != "all"),
+                    q: Some(query().trim().to_string()).filter(|v| !v.is_empty()),
+                },
+            });
+        }
+    });
 
     // Only for the header: the display name, and slug as the subtitle — mirroring how every
     // card on /projects and /dashboard renders the pair.

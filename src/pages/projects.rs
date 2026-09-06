@@ -115,7 +115,7 @@ fn ProjectCard(project: ProjectSummary) -> Element {
                 div { class: "flex items-center justify-between gap-4",
                     div {
                         Link {
-                            to: Route::Issues { slug: project.slug.clone() },
+                            to: Route::issues(project.slug.clone()),
                             class: "font-semibold hover:text-primary",
                             "{project.name}"
                         }

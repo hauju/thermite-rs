@@ -51,6 +51,9 @@ chrono = { workspace = true }
 # Icons
 dioxus-free-icons = { version = "0.10.0", features = ["lucide"] }
 
+# Query-string encoding for the issue list's filters (see `routes::IssueFilters`).
+percent-encoding = "2.3"
+
 # Documentation
 dioxus-docs-kit = { version = "0.6.1", default-features = false }
 

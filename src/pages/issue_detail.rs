@@ -48,7 +48,7 @@ pub fn IssueDetail(id: i64) -> Element {
 
                     div {
                         Link {
-                            to: Route::Issues { slug: detail.project_slug.clone() },
+                            to: Route::issues(detail.project_slug.clone()),
                             class: "inline-flex items-center gap-1.5 text-sm text-base-content/60 hover:text-base-content",
                             Icon { icon: LdArrowLeft, width: 14, height: 14 }
                             "{detail.project_slug}"

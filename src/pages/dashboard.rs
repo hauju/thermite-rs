@@ -117,7 +117,7 @@ fn OverviewCard(row: ProjectOverviewRow) -> Element {
                 div { class: "flex items-center justify-between gap-3 sm:gap-4",
                     div { class: "min-w-0",
                         Link {
-                            to: Route::Issues { slug: row.slug.clone() },
+                            to: Route::issues(row.slug.clone()),
                             class: "font-semibold hover:text-primary truncate block",
                             "{row.name}"
                         }

@@ -170,7 +170,7 @@ pub fn Playground() -> Element {
                     if let Some(project) = list.iter().find(|p| Some(p.id) == selected()) {
                         div { class: "mt-6",
                             Link {
-                                to: Route::Issues { slug: project.slug.clone() },
+                                to: Route::issues(project.slug.clone()),
                                 class: "btn btn-sm btn-ghost",
                                 "View {project.slug} issues →"
                             }
