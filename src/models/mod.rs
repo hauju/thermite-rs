@@ -2,6 +2,7 @@ pub mod api_key;
 pub mod demo;
 pub mod error;
 pub mod errors;
+pub mod repo_links;
 pub mod subscription;
 pub mod user;
 

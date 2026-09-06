@@ -152,6 +152,14 @@ pub struct IssueDetail {
     pub tags: Vec<IssueTag>,
     /// Distinct users hit. 0 when the SDK sends no user context.
     pub users_affected: i64,
+    /// The release the oldest retained event reported — for a new issue, the upper bound on where
+    /// the bug was introduced.
+    pub first_seen_release: Option<String>,
+    /// For a regression, the release the fix was verified against — the last known good. With the
+    /// latest event's release as the bad side, the diff between them is what reintroduced the bug.
+    pub regressed_from_release: Option<String>,
+    /// The project's repository, when configured. Turns releases and in-app frames into links.
+    pub repo_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

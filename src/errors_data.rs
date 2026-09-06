@@ -322,6 +322,9 @@ pub async fn issue_detail(id: i64) -> Result<IssueDetail, ServerFnError> {
         analyses: detail.analyses.into_iter().map(Into::into).collect(),
         tags: detail.tags.into_iter().map(Into::into).collect(),
         users_affected: detail.users_affected,
+        first_seen_release: detail.first_seen_release,
+        regressed_from_release: detail.regressed_from_release,
+        repo_url: detail.repo_url,
     })
 }
 

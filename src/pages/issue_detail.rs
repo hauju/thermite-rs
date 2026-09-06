@@ -9,6 +9,7 @@ use crate::errors_data::{issue_detail, set_issue_status};
 use crate::models::errors::{
     Analysis, Breadcrumb, ContextGroup, EventDetail, ExceptionValue, Frame, IssueTag, level_class,
 };
+use crate::models::repo_links::{SourceLinks, commit_url, compare_url};
 use crate::routes::Route;
 
 #[component]
@@ -126,6 +127,30 @@ pub fn IssueDetail(id: i64) -> Element {
                             }
                             Fact { label: "First seen", value: short_time(&detail.first_seen) }
                             Fact { label: "Last seen", value: short_time(&detail.last_seen) }
+                            // The upper bound on where the bug was introduced.
+                            if let Some(release) = &detail.first_seen_release {
+                                div {
+                                    div { class: "text-xs uppercase tracking-wide text-base-content/50",
+                                        "First seen in"
+                                    }
+                                    div { class: "mt-0.5",
+                                        ReleaseRef {
+                                            release: release.clone(),
+                                            href: detail.repo_url.as_deref().and_then(|repo| commit_url(repo, release)),
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Before the analyses: for a regression the diff between the two releases is
+                    // where the answer usually is, and an agent's findings should be read against it.
+                    if let Some(good) = &detail.regressed_from_release {
+                        RegressionRange {
+                            good: good.clone(),
+                            bad: detail.latest_event.as_ref().and_then(|e| e.release.clone()),
+                            repo_url: detail.repo_url.clone(),
                         }
                     }
 
@@ -151,7 +176,9 @@ pub fn IssueDetail(id: i64) -> Element {
                     }
 
                     match &detail.latest_event {
-                        Some(event) => rsx! { EventView { event: event.clone() } },
+                        Some(event) => rsx! {
+                            EventView { event: event.clone(), repo_url: detail.repo_url.clone() }
+                        },
                         None => rsx! {
                             div { class: "alert", "This issue has no stored events." }
                         },
@@ -222,6 +249,74 @@ fn TagsSection(tags: Vec<IssueTag>) -> Element {
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/// A release name in mono, linked to its commit page when it names a revision in the repository.
+#[component]
+fn ReleaseRef(release: String, href: Option<String>) -> Element {
+    match href {
+        Some(url) => rsx! {
+            a {
+                class: "font-mono text-sm hover:text-primary hover:underline break-all",
+                href: "{url}",
+                target: "_blank",
+                rel: "noopener noreferrer",
+                title: "Open this commit in the repository",
+                "{release}"
+            }
+        },
+        None => rsx! {
+            span { class: "font-mono text-sm break-all", "{release}" }
+        },
+    }
+}
+
+/// The last release the fix was verified against, and the one the issue is failing in again. The
+/// diff between them is the change set that reintroduced the bug, so that link is the one action.
+#[component]
+fn RegressionRange(good: String, bad: Option<String>, repo_url: Option<String>) -> Element {
+    let diff = match (&repo_url, &bad) {
+        (Some(repo), Some(bad)) => compare_url(repo, &good, bad),
+        _ => None,
+    };
+
+    rsx! {
+        div { class: "flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-warning/40 bg-warning/5 px-5 py-3",
+            span { class: "inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-warning",
+                Icon { icon: LdGitCompare, width: 14, height: 14 }
+                "Regression"
+            }
+            div { class: "flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm",
+                span { class: "text-base-content/60", "last good" }
+                ReleaseRef {
+                    release: good.clone(),
+                    href: repo_url.as_deref().and_then(|repo| commit_url(repo, &good)),
+                }
+                match &bad {
+                    Some(bad) => rsx! {
+                        span { class: "text-base-content/60", "→ failing in" }
+                        ReleaseRef {
+                            release: bad.clone(),
+                            href: repo_url.as_deref().and_then(|repo| commit_url(repo, bad)),
+                        }
+                    },
+                    None => rsx! {
+                        span { class: "text-base-content/60", "→ the latest event names no release" }
+                    },
+                }
+            }
+            if let Some(url) = diff {
+                a {
+                    class: "btn btn-sm btn-outline btn-warning ml-auto gap-1.5",
+                    href: "{url}",
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                    "View the diff"
+                    Icon { icon: LdExternalLink, width: 13, height: 13 }
                 }
             }
         }
@@ -320,7 +415,11 @@ fn AnalysisCard(analysis: Analysis) -> Element {
 }
 
 #[component]
-fn EventView(event: EventDetail) -> Element {
+fn EventView(event: EventDetail, repo_url: Option<String>) -> Element {
+    // Frames link into the repository only at a revision that exists there, so a version string
+    // as the release means no links rather than links to `main` that may have moved since.
+    let links = SourceLinks::new(repo_url.as_deref(), event.release.as_deref());
+
     rsx! {
         div { class: "flex flex-col gap-6",
             section {
@@ -355,7 +454,7 @@ fn EventView(event: EventDetail) -> Element {
                         div { class: "h-px flex-1 bg-base-300" }
                     }
                 }
-                ExceptionView { exception }
+                ExceptionView { exception, links: links.clone() }
             }
 
             if !event.breadcrumbs.is_empty() {
@@ -447,7 +546,7 @@ fn group_frames(frames: Vec<Frame>) -> Vec<FrameGroup> {
 }
 
 #[component]
-fn ExceptionView(exception: ExceptionValue) -> Element {
+fn ExceptionView(exception: ExceptionValue, links: Option<SourceLinks>) -> Element {
     // Reversed so the crashing frame is at the top, where a reader looks first.
     let frames: Vec<Frame> = exception.frames.iter().rev().cloned().collect();
 
@@ -471,10 +570,10 @@ fn ExceptionView(exception: ExceptionValue) -> Element {
                         for group in group_frames(frames) {
                             match group {
                                 FrameGroup::Single(frame) => rsx! {
-                                    FrameView { frame }
+                                    FrameView { frame, links: links.clone() }
                                 },
                                 FrameGroup::Collapsed(frames) => rsx! {
-                                    LibraryFrames { frames }
+                                    LibraryFrames { frames, links: links.clone() }
                                 },
                             }
                         }
@@ -486,7 +585,7 @@ fn ExceptionView(exception: ExceptionValue) -> Element {
 }
 
 #[component]
-fn LibraryFrames(frames: Vec<Frame>) -> Element {
+fn LibraryFrames(frames: Vec<Frame>, links: Option<SourceLinks>) -> Element {
     let mut open = use_signal(|| false);
     let count = frames.len();
 
@@ -505,7 +604,7 @@ fn LibraryFrames(frames: Vec<Frame>) -> Element {
             if open() {
                 div { class: "divide-y divide-base-300 border-t border-base-300",
                     for frame in frames.iter().cloned() {
-                        FrameView { frame }
+                        FrameView { frame, links: links.clone() }
                     }
                 }
             }
@@ -514,7 +613,7 @@ fn LibraryFrames(frames: Vec<Frame>) -> Element {
 }
 
 #[component]
-fn FrameView(frame: Frame) -> Element {
+fn FrameView(frame: Frame, links: Option<SourceLinks>) -> Element {
     // App frames carry an accent bar and full-strength text; library frames are dimmed so the
     // reader's eye lands on their own code.
     let (accent, emphasis) = if frame.in_app {
@@ -528,15 +627,39 @@ fn FrameView(frame: Frame) -> Element {
         .or(frame.module.clone())
         .unwrap_or_else(|| "<unknown>".to_string());
     let line = frame.lineno.map(|n| format!(":{n}")).unwrap_or_default();
+    let location = format!("{where_}{line}");
+    let location_class = if frame.function.is_some() {
+        "font-mono text-xs text-base-content/50 truncate"
+    } else {
+        "font-mono text-sm truncate"
+    };
+    // App frames only: a library's relative path (`django/db/models/query.py`) would link into
+    // the wrong repository.
+    let source = links
+        .as_ref()
+        .filter(|_| frame.in_app)
+        .and_then(|links| links.file(frame.filename.as_deref()?, frame.lineno?));
 
     rsx! {
         div { class: "{accent}",
             div { class: "px-4 py-2 flex items-baseline gap-2 flex-wrap {emphasis}",
                 if let Some(function) = &frame.function {
                     span { class: "font-mono text-sm font-semibold", "{function}" }
-                    span { class: "font-mono text-xs text-base-content/50 truncate", "{where_}{line}" }
-                } else {
-                    span { class: "font-mono text-sm truncate", "{where_}{line}" }
+                }
+                match &source {
+                    Some(url) => rsx! {
+                        a {
+                            class: "{location_class} hover:text-primary hover:underline",
+                            href: "{url}",
+                            target: "_blank",
+                            rel: "noopener noreferrer",
+                            title: "Open this line at the crashing revision",
+                            "{location}"
+                        }
+                    },
+                    None => rsx! {
+                        span { class: "{location_class}", "{location}" }
+                    },
                 }
             }
 

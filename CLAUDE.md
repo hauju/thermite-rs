@@ -397,6 +397,11 @@ Pages use `use_resource` rather than `use_server_future`, deliberately: these ar
 behind skeletons, and blocking SSR on database queries buys nothing. There is no hydration mismatch
 because both server and client start from `None`.
 
+The issue page links releases and in-app frames into the project's `repo_url`
+(`src/models/repo_links.rs`: commit, compare and blob URLs per forge), and only when the release
+is a git SHA — a forge can show a file at a revision, not at `1.4.2`, and a link to `main` would
+point at code that has moved since the crash.
+
 Charts are inline SVG (`src/components/sparkline.rs`) — bars over a fixed bucket count with no axes
 or interaction, where a charting dependency would be more code than the shapes. A non-zero bucket
 always gets a visible sliver so "rare" never renders identically to "never".
