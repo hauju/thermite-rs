@@ -737,7 +737,7 @@ fn EventView(event: EventDetail, repo_url: Option<String>) -> Element {
                                 // error, so the last row is what happened just before it broke.
                                 // Reversing them reads the causality backwards.
                                 for crumb in event.breadcrumbs.iter().cloned() {
-                                    BreadcrumbRow { crumb }
+                                    BreadcrumbRow { crumb, event_at: event.timestamp.clone() }
                                 }
                             }
                         }
@@ -965,19 +965,26 @@ fn FrameView(frame: Frame, links: Option<SourceLinks>) -> Element {
     }
 }
 
+/// `event_at` is the error's own timestamp: each crumb shows its distance from it, since "-1.2s
+/// before the crash" is what the trail is for, and a clock time makes the reader subtract.
 #[component]
-fn BreadcrumbRow(crumb: Breadcrumb) -> Element {
+fn BreadcrumbRow(crumb: Breadcrumb, event_at: String) -> Element {
     let dot = match crumb.level.as_deref() {
         Some("fatal") | Some("error") => "bg-error",
         Some("warning") => "bg-warning",
         Some("info") => "bg-info",
         _ => "bg-base-content/30",
     };
-    let time = crumb
+    let clock = crumb
         .timestamp
         .as_deref()
         .map(clock_time)
         .unwrap_or_default();
+    let time = crumb
+        .timestamp
+        .as_deref()
+        .and_then(|at| relative_to(at, &event_at))
+        .unwrap_or_else(|| clock.clone());
 
     rsx! {
         div { class: "relative pl-6 py-1.5 flex gap-3 items-baseline text-sm",
@@ -989,7 +996,11 @@ fn BreadcrumbRow(crumb: Breadcrumb) -> Element {
                 "{crumb.message.clone().unwrap_or_default()}"
             }
             if !time.is_empty() {
-                span { class: "font-mono text-xs text-base-content/40 tabular-nums shrink-0", "{time}" }
+                span {
+                    class: "font-mono text-xs text-base-content/40 tabular-nums shrink-0",
+                    title: "{clock}",
+                    "{time}"
+                }
             }
         }
     }
@@ -1025,11 +1036,72 @@ fn short_time(rfc3339: &str) -> String {
         .unwrap_or_else(|| rfc3339.to_string())
 }
 
-/// `10:00:42` — breadcrumbs happen seconds apart, so only the clock matters.
+/// A breadcrumb's offset from the error it led to, as `-340ms`, `-1.2s`, `-2m 05s` or `-1h 03m`.
+/// `None` when either stamp is not RFC 3339, which is when the clock time stands in.
+fn relative_to(crumb: &str, event: &str) -> Option<String> {
+    let crumb = chrono::DateTime::parse_from_rfc3339(crumb).ok()?;
+    let event = chrono::DateTime::parse_from_rfc3339(event).ok()?;
+    let ms = (crumb - event).num_milliseconds();
+    let sign = match ms {
+        0 => "",
+        m if m < 0 => "-",
+        _ => "+",
+    };
+    let ms = ms.unsigned_abs();
+    let body = if ms < 1_000 {
+        format!("{ms}ms")
+    } else if ms < 60_000 {
+        format!("{:.1}s", ms as f64 / 1_000.0)
+    } else if ms < 3_600_000 {
+        format!("{}m {:02}s", ms / 60_000, (ms % 60_000) / 1_000)
+    } else {
+        format!("{}h {:02}m", ms / 3_600_000, (ms % 3_600_000) / 60_000)
+    };
+    Some(format!("{sign}{body}"))
+}
+
+/// `10:00:42` — the clock, for a hover and for a crumb whose stamp does not parse.
 fn clock_time(rfc3339: &str) -> String {
     rfc3339
         .split_once('T')
         .and_then(|(_, rest)| rest.get(..8))
         .unwrap_or_default()
         .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::relative_to;
+
+    #[test]
+    fn crumbs_read_as_a_distance_from_the_error() {
+        let at = "2026-09-06T10:00:42.500Z";
+        assert_eq!(
+            relative_to("2026-09-06T10:00:42.160Z", at).as_deref(),
+            Some("-340ms")
+        );
+        assert_eq!(
+            relative_to("2026-09-06T10:00:41.300Z", at).as_deref(),
+            Some("-1.2s")
+        );
+        assert_eq!(
+            relative_to("2026-09-06T09:58:37.500Z", at).as_deref(),
+            Some("-2m 05s")
+        );
+        assert_eq!(
+            relative_to("2026-09-06T08:57:42.500Z", at).as_deref(),
+            Some("-1h 03m")
+        );
+        assert_eq!(relative_to(at, at).as_deref(), Some("0ms"));
+        assert_eq!(
+            relative_to("2026-09-06T10:00:43.000Z", at).as_deref(),
+            Some("+500ms")
+        );
+    }
+
+    #[test]
+    fn an_unparseable_stamp_yields_nothing() {
+        assert!(relative_to("1725616842", "2026-09-06T10:00:42Z").is_none());
+        assert!(relative_to("2026-09-06T10:00:42Z", "").is_none());
+    }
 }

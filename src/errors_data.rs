@@ -6,8 +6,8 @@
 use dioxus::prelude::*;
 
 use crate::models::errors::{
-    DeadLetterRow, EventDetail, EventRef, FeedRow, IssueDetail, IssueQuery, IssueRow,
-    MonitorRow, ProjectOverviewRow, ProjectStats, ProjectSummary, ReleaseHealthRow,
+    DeadLetterRow, EventDetail, EventRef, FeedRow, IssueDetail, IssueQuery, IssueRow, MonitorRow,
+    ProjectOverviewRow, ProjectStats, ProjectSummary, ReleaseHealthRow,
 };
 
 #[cfg(feature = "server")]
