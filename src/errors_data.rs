@@ -301,6 +301,7 @@ pub async fn issue_detail(id: i64) -> Result<IssueDetail, ServerFnError> {
     let slug = thermite_core::api::projects::slug_of(&state.db, detail.issue.project_id)
         .await
         .map_err(app_error)?;
+    let now = chrono::Utc::now();
 
     Ok(IssueDetail {
         id: detail.issue.id,
@@ -312,6 +313,8 @@ pub async fn issue_detail(id: i64) -> Result<IssueDetail, ServerFnError> {
         times_seen: detail.issue.times_seen,
         first_seen: detail.issue.first_seen.to_rfc3339(),
         last_seen: detail.issue.last_seen.to_rfc3339(),
+        first_seen_ago: crate::models::errors::ago(detail.issue.first_seen, now),
+        last_seen_ago: crate::models::errors::ago(detail.issue.last_seen, now),
         latest_event: detail.latest_event.map(Into::into),
         analyses: detail.analyses.into_iter().map(Into::into).collect(),
         tags: detail.tags.into_iter().map(Into::into).collect(),

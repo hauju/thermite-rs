@@ -166,6 +166,9 @@ pub struct IssueDetail {
     pub times_seen: i64,
     pub first_seen: String,
     pub last_seen: String,
+    /// Relative forms of the two, computed server-side: the WASM client has no clock.
+    pub first_seen_ago: String,
+    pub last_seen_ago: String,
     pub latest_event: Option<EventDetail>,
     pub analyses: Vec<Analysis>,
     /// Tag value counts across all the issue's events, ordered by key then frequency.
@@ -278,6 +281,8 @@ pub struct Analysis {
     /// note, and the rest is empty.
     pub note: bool,
     pub created_at: String,
+    /// `created_at` as "2h ago", computed server-side.
+    pub created_ago: String,
 }
 
 /// Thousands separators, for counts that are read by magnitude rather than exactly.
@@ -313,6 +318,9 @@ pub fn level_class(level: &str) -> &'static str {
 // ============================================================================
 // Server-side conversions
 // ============================================================================
+
+#[cfg(feature = "server")]
+pub(crate) use convert::ago;
 
 #[cfg(feature = "server")]
 mod convert {
@@ -405,7 +413,10 @@ mod convert {
     }
 
     /// `2m ago` / `3h ago` / `5d ago`. Takes `now` so it is testable without a clock.
-    fn ago(t: chrono::DateTime<chrono::Utc>, now: chrono::DateTime<chrono::Utc>) -> String {
+    pub(crate) fn ago(
+        t: chrono::DateTime<chrono::Utc>,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> String {
         let minutes = (now - t).num_minutes().max(0);
         match minutes {
             0 => "just now".to_string(),
@@ -571,6 +582,7 @@ mod convert {
                     .and_then(Value::as_str)
                     == Some("note"),
                 created_at: a.created_at.to_rfc3339(),
+                created_ago: ago(a.created_at, chrono::Utc::now()),
             }
         }
     }

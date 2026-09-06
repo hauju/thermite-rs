@@ -146,8 +146,18 @@ pub fn IssueDetail(id: i64) -> Element {
                                     value: detail.users_affected.to_string(),
                                 }
                             }
-                            Fact { label: "First seen", value: short_time(&detail.first_seen) }
-                            Fact { label: "Last seen", value: short_time(&detail.last_seen) }
+                            // Relative, with the exact stamp on hover: "3h ago" answers "is this
+                            // still happening?" faster than a date does.
+                            Fact {
+                                label: "First seen",
+                                value: detail.first_seen_ago.clone(),
+                                title: short_time(&detail.first_seen),
+                            }
+                            Fact {
+                                label: "Last seen",
+                                value: detail.last_seen_ago.clone(),
+                                title: short_time(&detail.last_seen),
+                            }
                             // The upper bound on where the bug was introduced.
                             if let Some(release) = &detail.first_seen_release {
                                 div {
@@ -369,11 +379,15 @@ fn RegressionRange(good: String, bad: Option<String>, repo_url: Option<String>) 
 }
 
 #[component]
-fn Fact(label: &'static str, value: String) -> Element {
+fn Fact(label: &'static str, value: String, #[props(default)] title: Option<String>) -> Element {
     rsx! {
         div {
             div { class: "text-xs uppercase tracking-wide text-base-content/50", "{label}" }
-            div { class: "font-display font-semibold tabular-nums mt-0.5", "{value}" }
+            div {
+                class: "font-display font-semibold tabular-nums mt-0.5",
+                title: title.unwrap_or_default(),
+                "{value}"
+            }
         }
     }
 }
@@ -445,7 +459,11 @@ fn AnalysisCard(analysis: Analysis) -> Element {
                     div { class: "flex items-center gap-2 flex-wrap text-xs",
                         span { class: "text-secondary", Icon { icon: LdUserRound, width: 16, height: 16 } }
                         span { class: "badge badge-sm badge-secondary badge-outline", "{analysis.source}" }
-                        span { class: "text-base-content/40 ml-auto", "{short_time(&analysis.created_at)}" }
+                        span {
+                            class: "text-base-content/40 ml-auto",
+                            title: short_time(&analysis.created_at),
+                            "{analysis.created_ago}"
+                        }
                     }
                     p { class: "text-sm whitespace-pre-wrap", "{analysis.summary}" }
                 }
@@ -473,7 +491,11 @@ fn AnalysisCard(analysis: Analysis) -> Element {
                     if let Some(release) = &analysis.release {
                         span { class: "font-mono text-base-content/50", "against {release}" }
                     }
-                    span { class: "text-base-content/40 ml-auto", "{short_time(&analysis.created_at)}" }
+                    span {
+                        class: "text-base-content/40 ml-auto",
+                        title: short_time(&analysis.created_at),
+                        "{analysis.created_ago}"
+                    }
                 }
                 p { class: "font-medium", "{analysis.summary}" }
                 if let Some(details) = &analysis.details {
