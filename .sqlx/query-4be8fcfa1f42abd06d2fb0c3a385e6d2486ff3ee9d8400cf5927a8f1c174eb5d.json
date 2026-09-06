@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users\n                  SET tos_version = $1,\n                      tos_accepted_at = CASE WHEN $2::bool THEN NOW() END,\n                      updated_at = NOW()\n                WHERE id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Bool",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4be8fcfa1f42abd06d2fb0c3a385e6d2486ff3ee9d8400cf5927a8f1c174eb5d"
+}

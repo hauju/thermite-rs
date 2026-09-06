@@ -26,6 +26,13 @@ pub struct UserEntity {
     #[serde(default)]
     pub subscription: Option<crate::models::subscription::SubscriptionInfo>,
 
+    /// The terms version the user accepted, and when. None until they do; an older version
+    /// than dx-auth's current one makes it ask again.
+    #[serde(default)]
+    pub tos_version: Option<String>,
+    #[serde(default)]
+    pub tos_accepted_at: Option<chrono::DateTime<chrono::Utc>>,
+
     /// When the user was created
     pub created_at: chrono::DateTime<chrono::Utc>,
 

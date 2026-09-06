@@ -33,6 +33,8 @@ struct UserRow {
     name: Option<String>,
     avatar_url: Option<String>,
     subscription: Option<Json<SubscriptionInfo>>,
+    tos_version: Option<String>,
+    tos_accepted_at: Option<chrono::DateTime<chrono::Utc>>,
     created_at: chrono::DateTime<chrono::Utc>,
     updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -46,6 +48,8 @@ impl From<UserRow> for UserEntity {
             name: r.name,
             avatar_url: r.avatar_url,
             subscription: r.subscription.map(|j| j.0),
+            tos_version: r.tos_version,
+            tos_accepted_at: r.tos_accepted_at,
             created_at: r.created_at,
             updated_at: r.updated_at,
         }
@@ -57,6 +61,7 @@ pub async fn find_by_id(db: &Database, id: Uuid) -> Result<Option<UserEntity>, A
         UserRow,
         r#"SELECT id, sub, email, name, avatar_url,
                   subscription as "subscription: Json<SubscriptionInfo>",
+                  tos_version, tos_accepted_at as "tos_accepted_at: Ts",
                   created_at as "created_at: Ts", updated_at as "updated_at: Ts"
            FROM users WHERE id = $1"#,
         id
@@ -71,6 +76,7 @@ pub async fn find_by_sub(db: &Database, sub: &str) -> Result<Option<UserEntity>,
         UserRow,
         r#"SELECT id, sub, email, name, avatar_url,
                   subscription as "subscription: Json<SubscriptionInfo>",
+                  tos_version, tos_accepted_at as "tos_accepted_at: Ts",
                   created_at as "created_at: Ts", updated_at as "updated_at: Ts"
            FROM users WHERE sub = $1"#,
         sub
@@ -85,6 +91,7 @@ pub async fn find_by_email(db: &Database, email: &str) -> Result<Option<UserEnti
         UserRow,
         r#"SELECT id, sub, email, name, avatar_url,
                   subscription as "subscription: Json<SubscriptionInfo>",
+                  tos_version, tos_accepted_at as "tos_accepted_at: Ts",
                   created_at as "created_at: Ts", updated_at as "updated_at: Ts"
            FROM users WHERE email = $1"#,
         email

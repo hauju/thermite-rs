@@ -103,6 +103,9 @@ impl AuthUserStore for AppAuthUserStore {
             name: None,
             avatar_url: None,
             subscription: None,
+            // A user created just now has accepted nothing yet.
+            tos_version: None,
+            tos_accepted_at: None,
             created_at: row.created_at,
             updated_at: row.updated_at,
         };
@@ -131,12 +134,26 @@ impl AuthUserStore for AppAuthUserStore {
         Ok(())
     }
 
-    async fn update_tos_acceptance(
-        &self,
-        _user_id: &str,
-        _tos: AuthTosAcceptance,
-    ) -> AuthResult<()> {
-        // No-op for now — placeholder for future TOS tracking
+    /// Records which terms version the user accepted, and when — what dx-auth reads back on
+    /// the next login to decide whether to ask again.
+    async fn update_tos_acceptance(&self, user_id: &str, tos: AuthTosAcceptance) -> AuthResult<()> {
+        let id = Uuid::parse_str(user_id)
+            .map_err(|e| AuthError::ServerStateError(format!("Invalid user id: {e}")))?;
+
+        sqlx::query!(
+            r#"UPDATE users
+                  SET tos_version = $1,
+                      tos_accepted_at = CASE WHEN $2::bool THEN NOW() END,
+                      updated_at = NOW()
+                WHERE id = $3"#,
+            tos.latest_version,
+            tos.accepted,
+            id
+        )
+        .execute(&self.state.db.pool)
+        .await
+        .map_err(|e| AuthError::ServerStateError(format!("DB update error: {e}")))?;
+
         Ok(())
     }
 
@@ -222,7 +239,10 @@ fn user_entity_to_auth_user(entity: UserEntity) -> AuthUser {
         sub: entity.sub,
         email: entity.email,
         display_name: entity.name,
-        tos_acceptance: None,
+        tos_acceptance: entity.tos_version.map(|latest_version| AuthTosAcceptance {
+            latest_version,
+            accepted: entity.tos_accepted_at.is_some(),
+        }),
     }
 }
 
@@ -255,6 +275,26 @@ mod tests {
 
         let found = store.get_user_by_sub("sub-fresh").await.unwrap().unwrap();
         assert_eq!(found.id, created.id);
+    }
+
+    /// The acceptance has to survive to the next login, or the question comes back every time.
+    #[sqlx::test]
+    async fn remembers_which_terms_a_user_accepted(pool: PgPool) {
+        let store = AppAuthUserStore::new(test_state(Database::from_pool(pool)));
+        let created = store.create_user(new_user("tos")).await.unwrap();
+        assert!(created.tos_acceptance.is_none(), "nothing accepted yet");
+
+        let accepted = AuthTosAcceptance {
+            latest_version: "1.0".into(),
+            accepted: true,
+        };
+        store
+            .update_tos_acceptance(&created.id, accepted.clone())
+            .await
+            .unwrap();
+
+        let found = store.get_user_by_sub("sub-tos").await.unwrap().unwrap();
+        assert_eq!(found.tos_acceptance, Some(accepted));
     }
 
     #[sqlx::test]
