@@ -72,7 +72,7 @@ fn LegalDocument(
     rsx! {
         document::Title { "{title}" }
         document::Meta { name: "description", content: description }
-        document::Link { rel: "canonical", href: "https://thermite.oxidt.com{path}" }
+        document::Link { rel: "canonical", href: "https://thermite.rs{path}" }
 
         div { class: "container mx-auto max-w-3xl px-4 pt-10 pb-20",
             Link {

@@ -7,6 +7,8 @@ Self-hosted, agent-native error tracking, written in Rust. Thermite speaks Sentr
 protocol — point any unmodified Sentry SDK at it and errors group into issues in your own
 Postgres. Your coding agent triages them over MCP and leaves its diagnosis on the issue page.
 
+A hosted instance runs at **[thermite.rs](https://thermite.rs)**.
+
 Thermite is built for reading by an agent, not just by a human. `GET /api/v1/issues/{id}` returns
 the issue *and* its latest event in full — exception chain, every stack frame with source context,
 breadcrumbs, contexts — so a coding agent can diagnose a bug in one request instead of walking a

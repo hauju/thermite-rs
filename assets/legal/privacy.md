@@ -2,7 +2,7 @@
 
 **Effective Date:** [Last Updated: August 26, 2026]
 
-Welcome to Thermite (the "Service"). This Privacy Policy explains how **Hauke Jung** ("we," "us," or "our") collects, uses, and protects personal information in connection with our website **[https://thermite.oxidt.com](https://thermite.oxidt.com)** and related services.
+Welcome to Thermite (the "Service"). This Privacy Policy explains how **Hauke Jung** ("we," "us," or "our") collects, uses, and protects personal information in connection with our website **[https://thermite.rs](https://thermite.rs)** and related services.
 
 Thermite is an error tracker. That shapes this policy: most of the data it holds is not information you typed into a form, but crash reports your own applications transmit to it automatically. Sections 3 and 4 describe exactly what those reports contain, what is removed before anything is stored, and who is legally responsible for it.
 
@@ -143,7 +143,7 @@ We use a single **strictly necessary** cookie: a signed session cookie that keep
 
 Your light/dark theme preference is stored in your browser's **local storage**, not in a cookie, and is never transmitted to us.
 
-We set **no analytics, advertising or tracking cookies**, and embed no third-party tracking scripts. There is nothing here to consent to beyond what is technically required to log you in, which is why the site shows no cookie banner. See our [Cookie Policy](https://thermite.oxidt.com/legal/cookies) for the full detail.
+We set **no analytics, advertising or tracking cookies**, and embed no third-party tracking scripts. There is nothing here to consent to beyond what is technically required to log you in, which is why the site shows no cookie banner. See our [Cookie Policy](https://thermite.rs/legal/cookies) for the full detail.
 
 ---
 

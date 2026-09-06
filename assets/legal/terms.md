@@ -3,7 +3,7 @@
 **Effective Date:** [Last Updated: August 26, 2026]
 
 ## 1. Introduction / Acceptance of Terms
-Thermite is provided by Hauke Jung ("we," "us," or "our"). By accessing or using the platform, pointing an SDK at our ingest endpoint, or maintaining an account, you agree to be bound by these Terms of Service ("Terms") and any policies referenced herein. If you do not agree, you may not use the service. These Terms govern your access to and use of Thermite, available at [https://thermite.oxidt.com](https://thermite.oxidt.com), and any related services we provide.
+Thermite is provided by Hauke Jung ("we," "us," or "our"). By accessing or using the platform, pointing an SDK at our ingest endpoint, or maintaining an account, you agree to be bound by these Terms of Service ("Terms") and any policies referenced herein. If you do not agree, you may not use the service. These Terms govern your access to and use of Thermite, available at [https://thermite.rs](https://thermite.rs), and any related services we provide.
 
 ## 2. Description of Service
 Thermite is an error tracking service that speaks Sentry's wire protocol. Unmodified Sentry SDKs report crashes into it, events are grouped into issues, and the same data is served to a hosted dashboard, a REST API and an MCP server that coding agents can read from and write their diagnoses back to. The service also includes per-project alert routing by email and webhook, cron monitoring for scheduled jobs, release health, documentation and related support resources. Thermite is primarily intended for business and organizational use within the European Union. If you use the Service as a consumer, statutory consumer protection rights under applicable EU or German law apply.
@@ -39,7 +39,7 @@ When using Thermite, you agree to:
 - All trademarks, logos, and marks used on the service belong to Hauke Jung or third parties. You may not use them without prior written consent. Sentry is a trademark of Functional Software, Inc.; Thermite implements a compatible wire protocol and is neither affiliated with nor endorsed by them.
 
 ## 7. Your Data and Your Responsibilities
-- We process personal data in accordance with our Privacy Policy, available at [Privacy Policy](https://thermite.oxidt.com/legal/privacy). By using the service, you acknowledge that processing.
+- We process personal data in accordance with our Privacy Policy, available at [Privacy Policy](https://thermite.rs/legal/privacy). By using the service, you acknowledge that processing.
 - **You decide what your applications transmit.** Stack traces, request headers and bodies, breadcrumbs and user context reach us because your SDK was configured to send them. You remain the controller of that data and warrant that you have a lawful basis to send it.
 - You must not deliberately transmit special categories of personal data (Article 9 GDPR) in error reports.
 - We scrub values under a list of credential-like keys before anything is written, and you can extend that list. Scrubbing is key-based and best-effort; use your SDK's own filtering hooks for anything that must never leave your systems. Section 4 of the Privacy Policy explains the limits.
@@ -101,7 +101,7 @@ Hauke Jung
 Hauptstr. 41
 79199 Kirchzarten, Germany
 **Email:** [mail@haukejung.de](mailto:mail@haukejung.de)
-**Website:** [https://thermite.oxidt.com](https://thermite.oxidt.com)
+**Website:** [https://thermite.rs](https://thermite.rs)
 
 ---
 

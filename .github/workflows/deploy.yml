@@ -1,0 +1,99 @@
+name: Build image
+
+# Builds the Rust/WASM bundle OUTSIDE Docker (so cargo caching works), then the
+# Dockerfile only packages the artifacts, and the image is pushed to a container
+# registry. Nothing compiles on the host that runs it.
+#
+# This workflow builds and pushes only; rolling the image out is a separate,
+# manual step on the host.
+#
+# Configure before enabling (Settings → Secrets and variables):
+#   Variables: REGISTRY (e.g. ghcr.io), REGISTRY_USERNAME
+#   Secrets:   REGISTRY_PASSWORD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ${{ vars.REGISTRY }}
+  IMAGE_NAME: thermite
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # A fork, or a clone without a registry configured, has nothing to push to. Skip rather
+      # than fail: the secrets context cannot be read from a job-level `if`, so a step decides.
+      - name: Check for a registry
+        id: registry
+        env:
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: |
+          if [ -n "$REGISTRY" ] && [ -n "$REGISTRY_PASSWORD" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::REGISTRY / REGISTRY_PASSWORD not set; nothing to push, skipping the build"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: dtolnay/rust-toolchain@master
+        if: steps.registry.outputs.configured == 'true'
+        with:
+          # rust-toolchain.toml pins the channel; this adds the wasm target.
+          toolchain: 1.97.1
+          targets: wasm32-unknown-unknown
+      - uses: rui314/setup-mold@v1
+        if: steps.registry.outputs.configured == 'true'
+      - name: Setup Rust cache
+        if: steps.registry.outputs.configured == 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Install Bun
+        if: steps.registry.outputs.configured == 'true'
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install Dioxus CLI
+        if: steps.registry.outputs.configured == 'true'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: dioxus-cli@0.7.10
+
+      - name: Generate Tailwind CSS
+        if: steps.registry.outputs.configured == 'true'
+        run: |
+          bun install --frozen-lockfile
+          bunx @tailwindcss/cli -i tailwind.css -o assets/tailwind.css
+
+      - name: Build web bundle
+        if: steps.registry.outputs.configured == 'true'
+        run: dx bundle --web --release
+
+      # Docker build just packages the prebuilt artifacts (see Dockerfile).
+      - uses: docker/setup-buildx-action@v4
+        if: steps.registry.outputs.configured == 'true'
+
+      - name: Log in to registry
+        if: steps.registry.outputs.configured == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ vars.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push image
+        if: steps.registry.outputs.configured == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}

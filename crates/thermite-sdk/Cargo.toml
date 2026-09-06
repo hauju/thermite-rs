@@ -8,6 +8,7 @@ authors.workspace = true
 # application, and AGPL there would reach through into their code. Every Sentry SDK is
 # permissively licensed for the same reason.
 license = "MIT OR Apache-2.0"
+homepage.workspace = true
 repository.workspace = true
 
 [features]

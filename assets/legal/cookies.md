@@ -1,7 +1,7 @@
 # Cookie Policy
 
 **Effective Date:** [Last Updated: August 26, 2026]
-**Applies to:** [https://thermite.oxidt.com](https://thermite.oxidt.com)
+**Applies to:** [https://thermite.rs](https://thermite.rs)
 
 ---
 
@@ -11,7 +11,7 @@ This Cookie Policy explains how **Hauke Jung** ("we," "us," or "our") uses cooki
 
 The short version: we use **one cookie**, it keeps you signed in, and there is nothing else. We run no analytics product, no advertising or marketing trackers, and no third-party tracking scripts. That is why you see no cookie banner — there is no non-essential storage to ask you about.
 
-This policy should be read together with our [Privacy Policy](https://thermite.oxidt.com/legal/privacy).
+This policy should be read together with our [Privacy Policy](https://thermite.rs/legal/privacy).
 
 Where required by law, we will always ask for your **consent** before using non-essential cookies. Should that ever change, this policy is updated first.
 
@@ -101,7 +101,7 @@ Hauke Jung
 Hauptstr. 41
 79199 Kirchzarten, Germany
 **Email:** [mail@haukejung.de](mailto:mail@haukejung.de)
-**Website:** [https://thermite.oxidt.com](https://thermite.oxidt.com)
+**Website:** [https://thermite.rs](https://thermite.rs)
 
 ---
 
