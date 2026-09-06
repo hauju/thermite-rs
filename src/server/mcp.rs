@@ -472,13 +472,16 @@ impl McpTools {
         Extension(parts): Extension<Parts>,
         Parameters(input): Parameters<SetStatus>,
     ) -> Result<CallToolResult, McpError> {
-        self.authenticate(&parts).await?;
+        let auth = self.authenticate(&parts).await?;
+        // The history names who did it: the key's owner, as the dashboard would name them.
+        let actor = auth.user.name.clone().unwrap_or(auth.user.email.clone());
         present(
             issues::update_status(
                 self.db(),
                 input.issue_id,
                 &input.status,
                 input.in_next_release,
+                Some(&actor),
             )
             .await,
         )

@@ -218,6 +218,21 @@ pub struct IssueDetail {
     pub regressed_from_release: Option<String>,
     /// The project's repository, when configured. Turns releases and in-app frames into links.
     pub repo_url: Option<String>,
+    /// What happened to the issue, oldest first.
+    pub activity: Vec<ActivityRow>,
+}
+
+/// One line of an issue's history, already worded.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ActivityRow {
+    /// `status`, `regression`, `analysis` or `note`.
+    pub kind: String,
+    pub actor: Option<String>,
+    pub text: String,
+    /// Tailwind background class for the timeline dot, chosen from what happened.
+    pub dot: String,
+    pub at: String,
+    pub ago: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -519,6 +534,76 @@ mod convert {
                 crashed: health.crashed,
                 crash_free_rate: health.crash_free_rate,
                 series: health.series,
+            }
+        }
+    }
+
+    impl From<thermite_core::api::activity::Activity> for ActivityRow {
+        fn from(a: thermite_core::api::activity::Activity) -> Self {
+            let field = |key: &str| {
+                a.detail
+                    .get(key)
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            };
+            // One line each, cut at a length that still reads as a summary on the timeline.
+            let clip = |s: String| {
+                if s.chars().count() > 140 {
+                    let cut: String = s.chars().take(139).collect();
+                    format!("{cut}…")
+                } else {
+                    s
+                }
+            };
+            let (text, dot) = match a.kind.as_str() {
+                "status" => match field("to").as_deref() {
+                    Some("resolved") if a.detail["in_next_release"].as_bool() == Some(true) => (
+                        match field("release") {
+                            Some(release) => {
+                                format!("resolved until the next release after {release}")
+                            }
+                            None => "resolved until the next release".to_string(),
+                        },
+                        "bg-success",
+                    ),
+                    Some("resolved") => ("resolved".to_string(), "bg-success"),
+                    Some("ignored") => ("ignored".to_string(), "bg-base-content/40"),
+                    Some("unresolved") => ("reopened".to_string(), "bg-warning"),
+                    Some(other) => (format!("set to {other}"), "bg-base-content/40"),
+                    None => ("status changed".to_string(), "bg-base-content/40"),
+                },
+                "regression" => (
+                    match (field("release"), field("regressed_from")) {
+                        (Some(release), Some(good)) => {
+                            format!("came back in {release}, after being fixed in {good}")
+                        }
+                        (Some(release), None) => format!("came back in {release}"),
+                        (None, _) => "came back".to_string(),
+                    },
+                    "bg-error",
+                ),
+                "note" => (
+                    clip(format!("note: {}", field("summary").unwrap_or_default())),
+                    "bg-secondary",
+                ),
+                _ => (
+                    clip(match field("confidence") {
+                        Some(confidence) => format!(
+                            "analysis, {confidence} confidence: {}",
+                            field("summary").unwrap_or_default()
+                        ),
+                        None => format!("analysis: {}", field("summary").unwrap_or_default()),
+                    }),
+                    "bg-primary",
+                ),
+            };
+            Self {
+                kind: a.kind,
+                actor: a.actor,
+                text,
+                dot: dot.to_string(),
+                at: a.created_at.to_rfc3339(),
+                ago: ago(a.created_at, chrono::Utc::now()),
             }
         }
     }

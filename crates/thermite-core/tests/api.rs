@@ -9,6 +9,15 @@ use common::*;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 
+fn post(uri: &str, body: Value) -> Request<Body> {
+    Request::builder()
+        .method("POST")
+        .uri(uri)
+        .header("Content-Type", "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap()
+}
+
 fn get(uri: &str) -> Request<Body> {
     Request::builder()
         .method("GET")
@@ -431,6 +440,71 @@ async fn sort_by_users_ranks_by_distinct_users_not_events(db: PgPool) {
     .await;
     assert_eq!(by_users[0]["exception_type"], json!("Wide"), "{by_users}");
     assert_eq!(by_users[0]["users_affected"], json!(3));
+}
+
+/// An issue's history: who changed its status, what an agent found, and that it came back —
+/// in order, with the releases that matter for a diagnosis.
+#[sqlx::test(migrations = "../../migrations")]
+async fn the_history_records_changes_findings_and_reopens_in_order(db: PgPool) {
+    let project_id = create_project(&db, "demo", PUBLIC_KEY).await;
+    let mut event = error_event(&"1".repeat(32), "ValueError", "boom");
+    event["release"] = json!("v1");
+    ingest(&db, project_id, event).await;
+    let issue_id: i64 = sqlx::query_scalar("select id from issues")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+
+    let response = send(
+        state(db.clone()),
+        post(
+            &format!("/api/v1/issues/{issue_id}/status"),
+            json!({ "status": "resolved", "in_next_release": true }),
+        ),
+    )
+    .await;
+    assert_status(&response, StatusCode::OK);
+    let response = send(
+        state(db.clone()),
+        post(
+            &format!("/api/v1/issues/{issue_id}/analyses"),
+            json!({ "source": "claude-code", "summary": "It is the retry loop.", "confidence": "high" }),
+        ),
+    )
+    .await;
+    assert!(response.status().is_success(), "{}", response.status());
+
+    let mut again = error_event(&"2".repeat(32), "ValueError", "boom");
+    again["release"] = json!("v2");
+    ingest(&db, project_id, again).await;
+
+    let detail = body_json(
+        send(
+            state(db.clone()),
+            get(&format!("/api/v1/issues/{issue_id}")),
+        )
+        .await,
+    )
+    .await;
+    let activity = detail["activity"].as_array().unwrap();
+    let kinds: Vec<&str> = activity
+        .iter()
+        .map(|a| a["kind"].as_str().unwrap())
+        .collect();
+    assert_eq!(kinds, ["status", "analysis", "regression"], "{activity:?}");
+
+    assert_eq!(activity[0]["actor"], json!("api"));
+    assert_eq!(activity[0]["detail"]["from"], json!("unresolved"));
+    assert_eq!(activity[0]["detail"]["to"], json!("resolved"));
+    assert_eq!(activity[0]["detail"]["in_next_release"], json!(true));
+    assert_eq!(activity[0]["detail"]["release"], json!("v1"));
+
+    assert_eq!(activity[1]["actor"], json!("claude-code"));
+    assert_eq!(activity[1]["detail"]["confidence"], json!("high"));
+
+    assert_eq!(activity[2]["actor"], Value::Null);
+    assert_eq!(activity[2]["detail"]["release"], json!("v2"));
+    assert_eq!(activity[2]["detail"]["regressed_from"], json!("v1"));
 }
 
 /// The dashboard's feed: what appeared or came back, not everything that is still broken.

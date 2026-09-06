@@ -125,6 +125,9 @@ pub struct IssueDetail {
     /// The project's repository, when one is configured — the same value the triage item carries,
     /// so an agent that came in through `get_issue` rather than a claim is not missing it.
     pub repo_url: Option<String>,
+    /// What happened to the issue, oldest first: status changes, reopens, analyses and notes. An
+    /// agent reading "resolved twice already, came back both times" reasons differently.
+    pub activity: Vec<crate::api::activity::Activity>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -383,16 +386,25 @@ pub async fn set_status(
     Json(body): Json<StatusUpdate>,
 ) -> AppResult<Json<IssueSummary>> {
     Ok(Json(
-        update_status(&state.db, id, &body.status, body.in_next_release).await?,
+        update_status(
+            &state.db,
+            id,
+            &body.status,
+            body.in_next_release,
+            Some("api"),
+        )
+        .await?,
     ))
 }
 
-/// Shared with the MCP tool of the same name.
+/// Shared with the MCP tool of the same name. `actor` is who did it, for the issue's history;
+/// the REST layer cannot know, so it says `api`.
 pub async fn update_status(
     db: &PgPool,
     id: i64,
     status: &str,
     in_next_release: bool,
+    actor: Option<&str>,
 ) -> AppResult<IssueSummary> {
     if !STATUSES.contains(&status) {
         return Err(AppError::BadRequest(format!(
@@ -435,17 +447,50 @@ pub async fn update_status(
         None
     };
 
-    let issue: Option<IssueSummary> = sqlx::query_as(&format!(
+    // The change and its history line commit together: a status without the line that says who
+    // set it, or the reverse, would be a history that lies.
+    let mut tx = db.begin().await?;
+    let before: Option<String> =
+        sqlx::query_scalar("select status from issues where id = $1 for update")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let Some(before) = before else {
+        return Err(AppError::NotFound);
+    };
+
+    let issue: IssueSummary = sqlx::query_as(&format!(
         "update issues set status = $2, resolved_in_release_id = $3
           where id = $1 returning {ISSUE_COLUMNS}"
     ))
     .bind(id)
     .bind(status)
     .bind(resolved_in)
-    .fetch_optional(db)
+    .fetch_one(&mut *tx)
     .await?;
 
-    issue.ok_or(AppError::NotFound)
+    let anchor: Option<String> = match resolved_in {
+        Some(release_id) => {
+            sqlx::query_scalar("select version from releases where id = $1")
+                .bind(release_id)
+                .fetch_optional(&mut *tx)
+                .await?
+        }
+        None => None,
+    };
+    crate::api::activity::record_status(
+        &mut tx,
+        id,
+        actor,
+        &before,
+        status,
+        in_next_release,
+        anchor.as_deref(),
+    )
+    .await?;
+    tx.commit().await?;
+
+    Ok(issue)
 }
 
 pub async fn detail(
@@ -490,6 +535,7 @@ pub async fn detail_of(db: &PgPool, id: i64) -> AppResult<IssueDetail> {
         first_seen_release,
         regressed_from_release,
         repo_url,
+        activity: crate::api::activity::for_issue(db, id).await?,
         issue,
     })
 }

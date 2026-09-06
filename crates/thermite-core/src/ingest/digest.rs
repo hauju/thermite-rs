@@ -120,6 +120,16 @@ pub async fn digest(
             .bind(trigger.as_str())
             .execute(&mut *tx)
             .await?;
+        // The history line for a reopen, in the same transaction as the reopen itself.
+        if matches!(trigger, Trigger::Regression) {
+            crate::api::activity::record_regression(
+                &mut tx,
+                issue.id,
+                release_id,
+                issue.resolved_in_release_id,
+            )
+            .await?;
+        }
     }
 
     tx.commit().await?;

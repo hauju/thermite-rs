@@ -8,6 +8,7 @@
 //! These routes carry **no authentication**. The application crate owns credentials — API keys,
 //! sessions, OAuth — and layers its own check over this router.
 
+pub mod activity;
 pub mod admin;
 pub mod alerts;
 pub mod analyses;

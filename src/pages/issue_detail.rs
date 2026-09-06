@@ -8,8 +8,8 @@ use crate::UserAuthState;
 use crate::components::toast::{ToastLevel, show_toast};
 use crate::errors_data::{event_detail, issue_detail, issue_events, post_note, set_issue_status};
 use crate::models::errors::{
-    Analysis, Breadcrumb, ContextGroup, EventDetail, EventRef, ExceptionValue, Frame, IssueTag,
-    level_class,
+    ActivityRow, Analysis, Breadcrumb, ContextGroup, EventDetail, EventRef, ExceptionValue, Frame,
+    IssueTag, level_class,
 };
 use crate::models::repo_links::{SourceLinks, commit_url, compare_url};
 use crate::routes::{IssueFilters, Route};
@@ -216,6 +216,38 @@ pub fn IssueDetail(id: i64) -> Element {
                         TagsSection { tags: detail.tags.clone(), project_slug: detail.project_slug.clone() }
                     }
 
+                    // What happened to the issue, in order — the answer to "has anyone touched
+                    // this, and did the fix hold". Opens with the first sighting, which is not
+                    // stored as an activity because the issue row already carries it.
+                    section {
+                        h2 { class: "text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-2",
+                            "Activity"
+                        }
+                        div { class: "card bg-base-200 border border-base-300",
+                            div { class: "card-body py-3 px-4",
+                                div { class: "relative flex flex-col",
+                                    div { class: "absolute left-[3px] top-2 bottom-2 w-px bg-base-300" }
+                                    ActivityLine {
+                                        row: ActivityRow {
+                                            kind: "first_seen".into(),
+                                            actor: None,
+                                            text: match &detail.first_seen_release {
+                                                Some(release) => format!("first seen, in {release}"),
+                                                None => "first seen".into(),
+                                            },
+                                            dot: "bg-base-content/30".into(),
+                                            at: detail.first_seen.clone(),
+                                            ago: detail.first_seen_ago.clone(),
+                                        },
+                                    }
+                                    for row in detail.activity.iter().cloned() {
+                                        ActivityLine { row }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     match &detail.latest_event {
                         Some(latest) => rsx! {
                             if let Some(Ok(list)) = &*refs.read_unchecked() && list.len() > 1 {
@@ -255,6 +287,26 @@ pub fn IssueDetail(id: i64) -> Element {
 
 /// Every value links to the board filtered by it: "every event has server_name=web-3" is a
 /// diagnosis, and "what else is web-3 throwing" is the next question.
+#[component]
+fn ActivityLine(row: ActivityRow) -> Element {
+    rsx! {
+        div { class: "relative pl-6 py-1.5 flex gap-3 items-baseline text-sm",
+            span { class: "absolute left-0 top-[0.85rem] w-[7px] h-[7px] rounded-full {row.dot}" }
+            span { class: "flex-1 min-w-0 break-words",
+                "{row.text}"
+                if let Some(actor) = &row.actor {
+                    span { class: "text-base-content/50", " · {actor}" }
+                }
+            }
+            span {
+                class: "font-mono text-xs text-base-content/40 tabular-nums shrink-0",
+                title: short_time(&row.at),
+                "{row.ago}"
+            }
+        }
+    }
+}
+
 #[component]
 fn TagsSection(tags: Vec<IssueTag>, project_slug: String) -> Element {
     // The list arrives ordered by key, so consecutive rows with the same key form one group.

@@ -6,8 +6,8 @@
 use dioxus::prelude::*;
 
 use crate::models::errors::{
-    DeadLetterRow, EventDetail, EventRef, FeedRow, IssueDetail, IssueQuery, IssueRow, MonitorRow,
-    ProjectOverviewRow, ProjectStats, ProjectSummary, ReleaseHealthRow,
+    DeadLetterRow, EventDetail, EventRef, FeedRow, IssueDetail, IssueQuery, IssueRow,
+    MonitorRow, ProjectOverviewRow, ProjectStats, ProjectSummary, ReleaseHealthRow,
 };
 
 #[cfg(feature = "server")]
@@ -34,6 +34,20 @@ fn thermite(session: auth::UserSession) -> Result<thermite_core::ThermiteState, 
         .data()
         .map_err(|_| ServerFnError::from(AppError::Unauthorized))?;
     Ok(crate::server::state::AppState::global().thermite.clone())
+}
+
+/// The request's state and the signed-in user's name, for writes that go into an issue's history.
+#[cfg(feature = "server")]
+fn writer(
+    session: auth::UserSession,
+) -> Result<(String, thermite_core::ThermiteState), ServerFnError> {
+    let data = session
+        .data()
+        .map_err(|_| ServerFnError::from(AppError::Unauthorized))?;
+    Ok((
+        data.username,
+        crate::server::state::AppState::global().thermite.clone(),
+    ))
 }
 
 /// Who is asking. A signed-in user reads everything; a visitor reads only the demo project,
@@ -421,6 +435,7 @@ pub async fn issue_detail(id: i64) -> Result<IssueDetail, ServerFnError> {
         first_seen_release: detail.first_seen_release,
         regressed_from_release: detail.regressed_from_release,
         repo_url: detail.repo_url,
+        activity: detail.activity.into_iter().map(Into::into).collect(),
     })
 }
 
@@ -487,10 +502,16 @@ pub async fn set_issue_status(
     status: String,
     in_next_release: bool,
 ) -> Result<(), ServerFnError> {
-    let state = thermite(session)?;
-    thermite_core::api::issues::update_status(&state.db, id, &status, in_next_release)
-        .await
-        .map_err(app_error)?;
+    let (actor, state) = writer(session)?;
+    thermite_core::api::issues::update_status(
+        &state.db,
+        id,
+        &status,
+        in_next_release,
+        Some(&actor),
+    )
+    .await
+    .map_err(app_error)?;
     Ok(())
 }
 
@@ -503,11 +524,17 @@ pub async fn set_issues_status(
     status: String,
     in_next_release: bool,
 ) -> Result<(), ServerFnError> {
-    let state = thermite(session)?;
+    let (actor, state) = writer(session)?;
     for id in ids {
-        thermite_core::api::issues::update_status(&state.db, id, &status, in_next_release)
-            .await
-            .map_err(app_error)?;
+        thermite_core::api::issues::update_status(
+            &state.db,
+            id,
+            &status,
+            in_next_release,
+            Some(&actor),
+        )
+        .await
+        .map_err(app_error)?;
     }
     Ok(())
 }
