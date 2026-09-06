@@ -103,6 +103,8 @@ pub struct IssueQuery {
     pub query: Option<String>,
     pub environment: Option<String>,
     pub component: Option<String>,
+    /// `key:value`. Wins over `component`, which is a tag filter too and the API takes one.
+    pub tag: Option<String>,
     /// `events` or `last_seen`.
     pub sort: String,
     pub limit: i64,

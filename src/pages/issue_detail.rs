@@ -12,7 +12,7 @@ use crate::models::errors::{
     level_class,
 };
 use crate::models::repo_links::{SourceLinks, commit_url, compare_url};
-use crate::routes::Route;
+use crate::routes::{IssueFilters, Route};
 
 #[component]
 pub fn IssueDetail(id: i64) -> Element {
@@ -213,7 +213,7 @@ pub fn IssueDetail(id: i64) -> Element {
                     // Distribution across *all* events, not just the one shown below — "every
                     // event has server_name=web-3" is a diagnosis in itself.
                     if !detail.tags.is_empty() {
-                        TagsSection { tags: detail.tags.clone() }
+                        TagsSection { tags: detail.tags.clone(), project_slug: detail.project_slug.clone() }
                     }
 
                     match &detail.latest_event {
@@ -253,8 +253,10 @@ pub fn IssueDetail(id: i64) -> Element {
     }
 }
 
+/// Every value links to the board filtered by it: "every event has server_name=web-3" is a
+/// diagnosis, and "what else is web-3 throwing" is the next question.
 #[component]
-fn TagsSection(tags: Vec<IssueTag>) -> Element {
+fn TagsSection(tags: Vec<IssueTag>, project_slug: String) -> Element {
     // The list arrives ordered by key, so consecutive rows with the same key form one group.
     let mut groups: Vec<(String, Vec<IssueTag>)> = Vec::new();
     for tag in tags {
@@ -286,8 +288,19 @@ fn TagsSection(tags: Vec<IssueTag>) -> Element {
                                         for tag in values.into_iter().take(8) {
                                             {
                                                 let pct = tag.times_seen * 100 / total;
+                                                let filtered = Route::Issues {
+                                                    slug: project_slug.clone(),
+                                                    filters: IssueFilters {
+                                                        status: Some("all".into()),
+                                                        tag: Some(format!("{}:{}", tag.key, tag.value)),
+                                                        ..Default::default()
+                                                    },
+                                                };
                                                 rsx! {
-                                                    div { class: "relative rounded-md overflow-hidden",
+                                                    Link {
+                                                        to: filtered,
+                                                        class: "relative rounded-md overflow-hidden block hover:bg-base-300/40",
+                                                        title: "Every issue with {tag.key} = {tag.value}",
                                                         // Proportional fill: how much of this issue's
                                                         // traffic carries this value.
                                                         div {

@@ -86,10 +86,13 @@ pub struct IssueFilters {
     pub env: Option<String>,
     pub component: Option<String>,
     pub q: Option<String>,
+    /// `key:value` — only issues with events carrying this tag. Set by clicking a value in an
+    /// issue's tag distribution.
+    pub tag: Option<String>,
 }
 
 impl IssueFilters {
-    fn pairs(&self) -> [(&'static str, &Option<String>); 6] {
+    fn pairs(&self) -> [(&'static str, &Option<String>); 7] {
         [
             ("status", &self.status),
             ("sort", &self.sort),
@@ -97,6 +100,7 @@ impl IssueFilters {
             ("env", &self.env),
             ("component", &self.component),
             ("q", &self.q),
+            ("tag", &self.tag),
         ]
     }
 }
@@ -136,6 +140,7 @@ impl From<&str> for IssueFilters {
                 "env" => &mut filters.env,
                 "component" => &mut filters.component,
                 "q" => &mut filters.q,
+                "tag" => &mut filters.tag,
                 _ => continue,
             };
             *slot = Some(value).filter(|v| !v.is_empty());
@@ -167,6 +172,7 @@ mod tests {
                 window: Some("7d".into()),
                 env: Some("production".into()),
                 q: Some("100% timed out & a=b #1".into()),
+                tag: Some("url:https://x.example/a?b=1".into()),
                 ..Default::default()
             },
         };

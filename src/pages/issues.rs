@@ -60,6 +60,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
     let mut sort = use_signal(move || seed.sort.unwrap_or_else(|| "events".to_string()));
     let mut environment = use_signal(move || seed.env.unwrap_or_else(|| "all".to_string()));
     let mut component = use_signal(move || seed.component.unwrap_or_else(|| "all".to_string()));
+    let mut tag = use_signal(move || seed.tag);
 
     // Mirror the filters back into the URL, so a view survives a reload and can be shared or
     // linked to from an alert. `replace` rather than `push`: every keystroke in the search box
@@ -77,6 +78,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                     env: Some(environment()).filter(|v| v != "all"),
                     component: Some(component()).filter(|v| v != "all"),
                     q: Some(query().trim().to_string()).filter(|v| !v.is_empty()),
+                    tag: tag(),
                 },
             });
         }
@@ -144,6 +146,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
             let query = query();
             let environment = environment();
             let component = component();
+            let tag = tag();
             let sort = sort();
             async move {
                 list_issues(IssueQuery {
@@ -152,6 +155,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                     query: (!query.trim().is_empty()).then(|| query.trim().to_string()),
                     environment: (environment != "all").then_some(environment),
                     component: (component != "all").then_some(component),
+                    tag,
                     sort,
                     limit: PAGE,
                     offset,
@@ -474,11 +478,30 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                             }
                         }
                     }
+                    // A tag filter arrives from an issue's tag distribution. It takes the one
+                    // tag slot the API offers, so the component select steps aside while it is
+                    // set rather than pretending both apply.
+                    if let Some(active) = tag() {
+                        span { class: "badge badge-neutral gap-1.5 h-8",
+                            span { class: "font-mono text-xs",
+                                {active.split_once(':').map(|(k, v)| format!("{k} = {v}")).unwrap_or(active.clone())}
+                            }
+                            button {
+                                class: "btn btn-ghost btn-xs btn-circle",
+                                "aria-label": "Clear the tag filter",
+                                onclick: move |_| {
+                                    reset_list();
+                                    tag.set(None);
+                                },
+                                "×"
+                            }
+                        }
+                    }
                     // Even one component is worth filtering on: events through the unlabeled
                     // default key carry no component tag, so "worker" vs everything-else is
                     // already a meaningful split.
                     if let Some(Ok(comps)) = &*comps.read_unchecked() {
-                        if !comps.is_empty() {
+                        if !comps.is_empty() && tag().is_none() {
                             select {
                                 class: "select select-sm select-bordered w-auto",
                                 onchange: move |e| {

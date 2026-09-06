@@ -290,8 +290,11 @@ pub async fn list_issues(query: IssueQuery) -> Result<Vec<IssueRow>, ServerFnErr
     allow_read(reader, &query.project)?;
 
     // The component filter is just a tag filter — the label is synthesized into
-    // issue_tags at ingest, exactly like environment.
-    let tag = query.component.map(|c| format!("component:{c}"));
+    // issue_tags at ingest, exactly like environment. An explicit tag filter takes the one
+    // slot the API offers.
+    let tag = query
+        .tag
+        .or_else(|| query.component.map(|c| format!("component:{c}")));
     let issues = thermite_core::api::issues::for_project(
         &state.db,
         &query.project,
