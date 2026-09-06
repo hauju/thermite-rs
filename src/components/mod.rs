@@ -1,3 +1,4 @@
+pub mod copy_dsn;
 pub mod dashboard_shell;
 pub mod footer;
 pub mod logo;

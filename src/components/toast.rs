@@ -80,8 +80,8 @@ impl ToastManager {
 /// Duration of the exit animation, kept in sync with `.animate-toast-out`.
 const EXIT_ANIMATION_MS: u64 = 300;
 
-/// Platform-agnostic sleep used to schedule auto-dismiss and exit animations.
-async fn sleep(ms: u64) {
+/// Platform-agnostic sleep: auto-dismiss and exit animations here, polling elsewhere.
+pub(crate) async fn sleep(ms: u64) {
     #[cfg(feature = "server")]
     tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
 

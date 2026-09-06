@@ -51,6 +51,7 @@ async fn lists_projects_with_their_dsn_and_counts(db: PgPool) {
         json!(format!("http://{PUBLIC_KEY}@localhost:9000/{project_id}"))
     );
     assert_eq!(body[0]["unresolved_issues"], json!(1));
+    assert_eq!(body[0]["total_issues"], json!(1));
     assert_eq!(body[0]["events_last_24h"], json!(1));
 }
 

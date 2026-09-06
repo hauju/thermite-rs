@@ -17,6 +17,8 @@ pub struct ProjectSummary {
     /// Configure an SDK with this. Not a secret — it only grants sending events.
     pub dsn: String,
     pub unresolved_issues: i64,
+    /// Issues of any status. Zero means nothing has ever reported into this project.
+    pub total_issues: i64,
     pub events_last_24h: i64,
     /// Per-project alert routing; None falls back to the instance-wide configuration.
     pub alert_email: Option<String>,
@@ -471,6 +473,7 @@ mod convert {
                 name: p.name,
                 dsn: p.dsn,
                 unresolved_issues: p.unresolved_issues,
+                total_issues: p.total_issues,
                 events_last_24h: p.events_last_24h,
                 alert_email: p.alert_email,
                 alert_webhook: p.alert_webhook,

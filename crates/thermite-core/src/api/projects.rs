@@ -16,6 +16,9 @@ pub struct ProjectSummary {
     /// grants the ability to send events.
     pub dsn: String,
     pub unresolved_issues: i64,
+    /// Issues of any status. Zero means nothing has ever reported: every accepted event creates
+    /// or touches an issue, and issues survive retention.
+    pub total_issues: i64,
     pub events_last_24h: i64,
     /// Per-project alert routing; null falls back to the instance-wide configuration.
     pub alert_email: Option<String>,
@@ -42,6 +45,7 @@ struct Row {
     name: String,
     public_key: String,
     unresolved_issues: i64,
+    total_issues: i64,
     events_last_24h: i64,
     alert_email: Option<String>,
     alert_webhook: Option<String>,
@@ -63,12 +67,14 @@ pub async fn all(db: &PgPool, config: &Config) -> AppResult<Vec<ProjectSummary>>
                 p.alert_webhook,
                 p.repo_url,
                 coalesce(i.unresolved_issues, 0) as unresolved_issues,
+                coalesce(i.total_issues, 0)      as total_issues,
                 coalesce(e.events_last_24h, 0)   as events_last_24h
            from projects p
            left join (
-                select project_id, count(*) as unresolved_issues
+                select project_id,
+                       count(*) as total_issues,
+                       count(*) filter (where status = 'unresolved') as unresolved_issues
                   from issues
-                 where status = 'unresolved'
                  group by project_id
            ) i on i.project_id = p.id
            -- From the rollup, not from `events`: counting raw rows here was a full table scan.
@@ -110,6 +116,7 @@ pub async fn all(db: &PgPool, config: &Config) -> AppResult<Vec<ProjectSummary>>
             slug: row.slug,
             name: row.name,
             unresolved_issues: row.unresolved_issues,
+            total_issues: row.total_issues,
             events_last_24h: row.events_last_24h,
             alert_email: row.alert_email,
             alert_webhook: row.alert_webhook,

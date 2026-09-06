@@ -1,14 +1,19 @@
 //! Issue list for one project: rate over time, current state, and what is broken.
 
 use dioxus::prelude::*;
-use dioxus_free_icons::{Icon, icons::ld_icons::LdSettings};
+use dioxus_free_icons::{
+    Icon,
+    icons::ld_icons::{LdCopy, LdSettings},
+};
 
+use crate::components::copy_dsn::CopyDsn;
 use crate::components::sparkline::{RateChart, Sparkline};
+use crate::components::toast::{ToastLevel, show_toast, sleep};
 use crate::errors_data::{
     components, environments, get_project, list_issues, list_monitors, project_stats,
     release_health,
 };
-use crate::models::errors::{IssueRow, MonitorRow, ReleaseHealthRow, level_class};
+use crate::models::errors::{IssueRow, MonitorRow, ProjectSummary, ReleaseHealthRow, level_class};
 use crate::routes::Route;
 
 #[component]
@@ -25,7 +30,7 @@ pub fn Issues(slug: String) -> Element {
 
     // Only for the header: the display name, and slug as the subtitle — mirroring how every
     // card on /projects and /dashboard renders the pair.
-    let project = use_resource({
+    let mut project = use_resource({
         let slug = slug.clone();
         move || {
             let slug = slug.clone();
@@ -33,7 +38,7 @@ pub fn Issues(slug: String) -> Element {
         }
     });
 
-    let envs = use_resource({
+    let mut envs = use_resource({
         let slug = slug.clone();
         move || {
             let slug = slug.clone();
@@ -41,7 +46,7 @@ pub fn Issues(slug: String) -> Element {
         }
     });
 
-    let comps = use_resource({
+    let mut comps = use_resource({
         let slug = slug.clone();
         move || {
             let slug = slug.clone();
@@ -49,7 +54,7 @@ pub fn Issues(slug: String) -> Element {
         }
     });
 
-    let stats = use_resource({
+    let mut stats = use_resource({
         let slug = slug.clone();
         move || {
             let slug = slug.clone();
@@ -58,7 +63,7 @@ pub fn Issues(slug: String) -> Element {
         }
     });
 
-    let monitors = use_resource({
+    let mut monitors = use_resource({
         let slug = slug.clone();
         move || {
             let slug = slug.clone();
@@ -66,7 +71,7 @@ pub fn Issues(slug: String) -> Element {
         }
     });
 
-    let releases = use_resource({
+    let mut releases = use_resource({
         let slug = slug.clone();
         move || {
             let slug = slug.clone();
@@ -75,7 +80,7 @@ pub fn Issues(slug: String) -> Element {
         }
     });
 
-    let issues = use_resource({
+    let mut issues = use_resource({
         let slug = slug.clone();
         move || {
             let slug = slug.clone();
@@ -97,6 +102,46 @@ pub fn Issues(slug: String) -> Element {
             }
         }
     });
+
+    // While nothing has reported yet, ask again every few seconds, so the tab a developer leaves
+    // open while wiring up an SDK turns into the board on its own when the first event lands.
+    // Everything above was fetched against an empty project, so it all refetches at that point.
+    // Ends once there is something to show, or once the project itself fails to load.
+    use_future({
+        let slug = slug.clone();
+        move || {
+            let slug = slug.clone();
+            async move {
+                loop {
+                    sleep(5_000).await;
+                    match &*project.peek() {
+                        Some(Ok(p)) if p.total_issues == 0 => {}
+                        Some(_) => break,
+                        None => continue,
+                    }
+                    if let Ok(p) = get_project(slug.clone()).await
+                        && p.total_issues > 0
+                    {
+                        project.restart();
+                        envs.restart();
+                        comps.restart();
+                        stats.restart();
+                        monitors.restart();
+                        releases.restart();
+                        issues.restart();
+                        break;
+                    }
+                }
+            }
+        }
+    });
+
+    // A project nothing has ever reported into gets setup instructions in place of an empty
+    // board — zero stats over "nothing here" reads as broken, not as new.
+    let first_event = match &*project.read_unchecked() {
+        Some(Ok(p)) if p.total_issues == 0 => Some(p.clone()),
+        _ => None,
+    };
 
     rsx! {
         div { class: "max-w-6xl",
@@ -130,149 +175,153 @@ pub fn Issues(slug: String) -> Element {
                 }
             }
 
-            match &*stats.read_unchecked() {
-                Some(Ok(stats)) => rsx! {
-                    div { class: "card bg-base-200 border border-base-300 mb-6",
-                        div { class: "card-body gap-4",
-                            div { class: "flex flex-wrap gap-6",
-                                Metric { label: "Events", value: stats.totals.events }
-                                Metric { label: "Unresolved", value: stats.totals.unresolved_issues }
-                                Metric { label: "New", value: stats.totals.new_issues }
-                                Metric { label: "Regressions", value: stats.totals.regressions }
-                                // Always rendered, unlike the monitors/releases panels: the zero
-                                // is the point — "nothing was silently lost", answered from
-                                // ingest day one rather than only once something goes missing.
-                                div {
-                                    title: dropped_breakdown(&stats.totals.dropped_by_reason),
-                                    div { class: "text-xs uppercase tracking-wide text-base-content/50",
-                                        "Dropped"
-                                    }
+            if let Some(fresh) = first_event {
+                FirstEvent { project: fresh }
+            } else {
+                match &*stats.read_unchecked() {
+                    Some(Ok(stats)) => rsx! {
+                        div { class: "card bg-base-200 border border-base-300 mb-6",
+                            div { class: "card-body gap-4",
+                                div { class: "flex flex-wrap gap-6",
+                                    Metric { label: "Events", value: stats.totals.events }
+                                    Metric { label: "Unresolved", value: stats.totals.unresolved_issues }
+                                    Metric { label: "New", value: stats.totals.new_issues }
+                                    Metric { label: "Regressions", value: stats.totals.regressions }
+                                    // Always rendered, unlike the monitors/releases panels: the zero
+                                    // is the point — "nothing was silently lost", answered from
+                                    // ingest day one rather than only once something goes missing.
                                     div {
-                                        class: if stats.totals.dropped > 0 { "text-2xl font-semibold tabular-nums text-error" } else { "text-2xl font-semibold tabular-nums text-base-content/40" },
-                                        "{stats.totals.dropped}"
+                                        title: dropped_breakdown(&stats.totals.dropped_by_reason),
+                                        div { class: "text-xs uppercase tracking-wide text-base-content/50",
+                                            "Dropped"
+                                        }
+                                        div {
+                                            class: if stats.totals.dropped > 0 { "text-2xl font-semibold tabular-nums text-error" } else { "text-2xl font-semibold tabular-nums text-base-content/40" },
+                                            "{stats.totals.dropped}"
+                                        }
+                                    }
+                                }
+                                RateChart {
+                                    counts: stats.series.iter().map(|b| b.count).collect::<Vec<_>>(),
+                                    labels: stats.series.iter().map(|b| b.bucket.clone()).collect::<Vec<_>>(),
+                                    resolution: stats.resolution.clone(),
+                                    dropped: stats.series.iter().map(|b| b.dropped).collect::<Vec<_>>(),
+                                }
+                            }
+                        }
+                    },
+                    Some(Err(e)) => rsx! {
+                        div { class: "alert alert-error mb-6", "Could not load stats: {e}" }
+                    },
+                    None => rsx! {
+                        div { class: "skeleton h-48 mb-6" }
+                    },
+                }
+
+                // Only rendered once a job has checked in: an instance that runs no cron jobs should
+                // not carry an empty panel forever.
+                if let Some(Ok(list)) = &*monitors.read_unchecked()
+                    && !list.is_empty()
+                {
+                    Monitors { monitors: list.clone() }
+                }
+
+                // Same rule: most SDKs never send sessions, and an empty release-health panel would
+                // read as "no crashes" rather than "nothing is reporting".
+                if let Some(Ok(list)) = &*releases.read_unchecked()
+                    && list.iter().any(|r| r.sessions > 0)
+                {
+                    ReleaseHealth { releases: list.clone() }
+                }
+
+                div { class: "flex flex-wrap gap-2 mb-4",
+                    div { class: "join",
+                        for option in ["unresolved", "resolved", "ignored", "all"] {
+                            button {
+                                class: if status() == option { "join-item btn btn-sm btn-primary" } else { "join-item btn btn-sm" },
+                                onclick: move |_| status.set(option.to_string()),
+                                "{option}"
+                            }
+                        }
+                    }
+                    div { class: "join",
+                        for (value , label) in [("events", "most events"), ("last_seen", "most recent")] {
+                            button {
+                                class: if sort() == value { "join-item btn btn-sm btn-primary" } else { "join-item btn btn-sm" },
+                                onclick: move |_| sort.set(value.to_string()),
+                                "{label}"
+                            }
+                        }
+                    }
+                    // Only worth showing once there is something to choose between.
+                    if let Some(Ok(envs)) = &*envs.read_unchecked() {
+                        if envs.len() > 1 {
+                            select {
+                                class: "select select-sm select-bordered w-auto",
+                                onchange: move |e| environment.set(e.value()),
+                                option { value: "all", "all environments" }
+                                for env in envs.iter().cloned() {
+                                    option { value: "{env}", selected: environment() == env, "{env}" }
+                                }
+                            }
+                        }
+                    }
+                    // Even one component is worth filtering on: events through the unlabeled
+                    // default key carry no component tag, so "worker" vs everything-else is
+                    // already a meaningful split.
+                    if let Some(Ok(comps)) = &*comps.read_unchecked() {
+                        if !comps.is_empty() {
+                            select {
+                                class: "select select-sm select-bordered w-auto",
+                                onchange: move |e| component.set(e.value()),
+                                option { value: "all", "all components" }
+                                for comp in comps.iter().cloned() {
+                                    option { value: "{comp}", selected: component() == comp, "{comp}" }
+                                }
+                            }
+                        }
+                    }
+                    input {
+                        class: "input input-sm input-bordered flex-1 min-w-48",
+                        r#type: "search",
+                        placeholder: "Search titles…",
+                        value: "{query}",
+                        oninput: move |e| query.set(e.value()),
+                    }
+                }
+
+                match &*issues.read_unchecked() {
+                    Some(Ok(rows)) if rows.is_empty() => rsx! {
+                        div { class: "card bg-base-200 border border-base-300",
+                            div { class: "card-body items-center text-center py-12",
+                                p { class: "text-base-content/60",
+                                    if query().trim().is_empty() {
+                                        "Nothing here. Either nothing is broken, or nothing is reporting yet."
+                                    } else {
+                                        "No issues match that search."
                                     }
                                 }
                             }
-                            RateChart {
-                                counts: stats.series.iter().map(|b| b.count).collect::<Vec<_>>(),
-                                labels: stats.series.iter().map(|b| b.bucket.clone()).collect::<Vec<_>>(),
-                                resolution: stats.resolution.clone(),
-                                dropped: stats.series.iter().map(|b| b.dropped).collect::<Vec<_>>(),
+                        }
+                    },
+                    Some(Ok(rows)) => rsx! {
+                        div { class: "flex flex-col gap-2",
+                            for row in rows.iter().cloned() {
+                                IssueCard { row }
                             }
                         }
-                    }
-                },
-                Some(Err(e)) => rsx! {
-                    div { class: "alert alert-error mb-6", "Could not load stats: {e}" }
-                },
-                None => rsx! {
-                    div { class: "skeleton h-48 mb-6" }
-                },
-            }
-
-            // Only rendered once a job has checked in: an instance that runs no cron jobs should
-            // not carry an empty panel forever.
-            if let Some(Ok(list)) = &*monitors.read_unchecked()
-                && !list.is_empty()
-            {
-                Monitors { monitors: list.clone() }
-            }
-
-            // Same rule: most SDKs never send sessions, and an empty release-health panel would
-            // read as "no crashes" rather than "nothing is reporting".
-            if let Some(Ok(list)) = &*releases.read_unchecked()
-                && list.iter().any(|r| r.sessions > 0)
-            {
-                ReleaseHealth { releases: list.clone() }
-            }
-
-            div { class: "flex flex-wrap gap-2 mb-4",
-                div { class: "join",
-                    for option in ["unresolved", "resolved", "ignored", "all"] {
-                        button {
-                            class: if status() == option { "join-item btn btn-sm btn-primary" } else { "join-item btn btn-sm" },
-                            onclick: move |_| status.set(option.to_string()),
-                            "{option}"
-                        }
-                    }
-                }
-                div { class: "join",
-                    for (value , label) in [("events", "most events"), ("last_seen", "most recent")] {
-                        button {
-                            class: if sort() == value { "join-item btn btn-sm btn-primary" } else { "join-item btn btn-sm" },
-                            onclick: move |_| sort.set(value.to_string()),
-                            "{label}"
-                        }
-                    }
-                }
-                // Only worth showing once there is something to choose between.
-                if let Some(Ok(envs)) = &*envs.read_unchecked() {
-                    if envs.len() > 1 {
-                        select {
-                            class: "select select-sm select-bordered w-auto",
-                            onchange: move |e| environment.set(e.value()),
-                            option { value: "all", "all environments" }
-                            for env in envs.iter().cloned() {
-                                option { value: "{env}", selected: environment() == env, "{env}" }
+                    },
+                    Some(Err(e)) => rsx! {
+                        div { class: "alert alert-error", "Could not load issues: {e}" }
+                    },
+                    None => rsx! {
+                        div { class: "flex flex-col gap-2",
+                            for _ in 0..3 {
+                                div { class: "skeleton h-20" }
                             }
                         }
-                    }
+                    },
                 }
-                // Even one component is worth filtering on: events through the unlabeled
-                // default key carry no component tag, so "worker" vs everything-else is
-                // already a meaningful split.
-                if let Some(Ok(comps)) = &*comps.read_unchecked() {
-                    if !comps.is_empty() {
-                        select {
-                            class: "select select-sm select-bordered w-auto",
-                            onchange: move |e| component.set(e.value()),
-                            option { value: "all", "all components" }
-                            for comp in comps.iter().cloned() {
-                                option { value: "{comp}", selected: component() == comp, "{comp}" }
-                            }
-                        }
-                    }
-                }
-                input {
-                    class: "input input-sm input-bordered flex-1 min-w-48",
-                    r#type: "search",
-                    placeholder: "Search titles…",
-                    value: "{query}",
-                    oninput: move |e| query.set(e.value()),
-                }
-            }
-
-            match &*issues.read_unchecked() {
-                Some(Ok(rows)) if rows.is_empty() => rsx! {
-                    div { class: "card bg-base-200 border border-base-300",
-                        div { class: "card-body items-center text-center py-12",
-                            p { class: "text-base-content/60",
-                                if query().trim().is_empty() {
-                                    "Nothing here. Either nothing is broken, or nothing is reporting yet."
-                                } else {
-                                    "No issues match that search."
-                                }
-                            }
-                        }
-                    }
-                },
-                Some(Ok(rows)) => rsx! {
-                    div { class: "flex flex-col gap-2",
-                        for row in rows.iter().cloned() {
-                            IssueCard { row }
-                        }
-                    }
-                },
-                Some(Err(e)) => rsx! {
-                    div { class: "alert alert-error", "Could not load issues: {e}" }
-                },
-                None => rsx! {
-                    div { class: "flex flex-col gap-2",
-                        for _ in 0..3 {
-                            div { class: "skeleton h-20" }
-                        }
-                    }
-                },
             }
         }
     }
@@ -289,6 +338,133 @@ fn dropped_breakdown(by_reason: &std::collections::BTreeMap<String, i64>) -> Str
         .map(|(reason, count)| format!("{reason}: {count}"))
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// What a project nothing has reported into shows instead of an empty board: the DSN, a snippet
+/// per SDK with it filled in, and a way to raise a test event without one.
+#[component]
+fn FirstEvent(project: ProjectSummary) -> Element {
+    let mut lang = use_signal(|| "python");
+    let (install, code) = snippet(lang(), &project.dsn);
+    // A JSON string is a valid JS string literal, quotes and newlines included.
+    let copy_code = serde_json::Value::String(code.clone()).to_string();
+
+    rsx! {
+        div { class: "card bg-base-200 border border-base-300",
+            div { class: "card-body gap-5",
+                div {
+                    h2 { class: "card-title text-base", "Send your first event" }
+                    p { class: "text-sm text-base-content/60",
+                        "Nothing has reported into this project yet. Point an SDK at its DSN — "
+                        "this page turns into the board on its own when the first event lands."
+                    }
+                }
+                div {
+                    div { class: "text-xs uppercase tracking-wide text-base-content/50 mb-1", "DSN" }
+                    div { class: "flex items-center gap-2",
+                        code { class: "flex-1 bg-base-300 rounded px-3 py-2 text-xs break-all font-mono",
+                            "{project.dsn}"
+                        }
+                        CopyDsn { dsn: project.dsn.clone(), label: project.slug.clone() }
+                    }
+                }
+                div { class: "flex flex-col gap-2",
+                    div { class: "flex items-center justify-between gap-2 flex-wrap",
+                        div { class: "join",
+                            for (value , label) in [("python", "Python"), ("javascript", "JavaScript"), ("rust", "Rust")] {
+                                button {
+                                    // `btn-outline` rather than a bare `btn`: on a card the bare
+                                    // one is the card's own colour.
+                                    class: if lang() == value { "join-item btn btn-sm btn-primary" } else { "join-item btn btn-sm btn-outline" },
+                                    onclick: move |_| lang.set(value),
+                                    "{label}"
+                                }
+                            }
+                        }
+                        button {
+                            class: "btn btn-sm btn-ghost gap-1.5",
+                            onclick: move |_| {
+                                let _ = document::eval(&format!(
+                                    "navigator.clipboard.writeText({copy_code})"
+                                ));
+                                show_toast("Snippet copied", ToastLevel::Success);
+                            },
+                            Icon { icon: LdCopy, width: 14, height: 14 }
+                            "Copy"
+                        }
+                    }
+                    div { class: "rounded-lg border border-base-300 overflow-hidden",
+                        div { class: "px-3 py-1.5 bg-base-300/60 font-mono text-xs text-base-content/60",
+                            "{install}"
+                        }
+                        pre { class: "bg-base-300/30 p-3 text-xs font-mono overflow-x-auto", "{code}" }
+                    }
+                }
+                div { class: "flex items-center gap-3 flex-wrap text-sm",
+                    span { class: "inline-flex items-center gap-2 text-base-content/60",
+                        span { class: "loading loading-spinner loading-xs" }
+                        "Waiting for the first event…"
+                    }
+                    span { class: "ml-auto flex gap-2",
+                        Link {
+                            to: Route::DocsPage { slug: vec!["guides".into(), "sdks".into()] },
+                            class: "btn btn-sm btn-outline",
+                            "SDK guide"
+                        }
+                        Link {
+                            to: Route::Playground {},
+                            class: "btn btn-sm btn-primary",
+                            "Raise a test event"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The install line and the init snippet for one SDK, with the project's DSN in place. Mirrors
+/// the SDK guide in the docs; keep the two in step.
+fn snippet(lang: &str, dsn: &str) -> (&'static str, String) {
+    match lang {
+        "javascript" => (
+            "bun add @sentry/browser   # or @sentry/node",
+            format!(
+                r#"import * as Sentry from "@sentry/browser";
+
+Sentry.init({{
+  dsn: "{dsn}",
+  release: "myapp@1.4.2",       // or the git SHA
+  environment: "production",
+  tracesSampleRate: 0,          // Thermite stores no transactions
+}});"#
+            ),
+        ),
+        "rust" => (
+            r#"thermite-sdk = { git = "https://github.com/hauju/thermite-rs" }"#,
+            format!(
+                r#"let mut options = thermite_sdk::Options::new("{dsn}");
+options.release = Some(env!("CARGO_PKG_VERSION").to_string());   // or the git SHA
+options.environment = Some("production".into());
+
+// Held for the life of `main`: dropping it flushes whatever is still queued.
+let _guard = thermite_sdk::init(options)?;"#
+            ),
+        ),
+        _ => (
+            "pip install sentry-sdk",
+            format!(
+                r#"import sentry_sdk
+
+sentry_sdk.init(
+    dsn="{dsn}",
+    release="myapp@1.4.2",          # or the git SHA
+    environment="production",
+    traces_sample_rate=0.0,          # Thermite stores no transactions
+)"#
+            ),
+        ),
+    }
 }
 
 #[component]

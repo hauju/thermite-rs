@@ -92,6 +92,7 @@ pub async fn create_project(slug: String, name: String) -> Result<ProjectSummary
         name: created.name,
         dsn: created.dsn,
         unresolved_issues: 0,
+        total_issues: 0,
         events_last_24h: 0,
         alert_email: None,
         alert_webhook: None,
