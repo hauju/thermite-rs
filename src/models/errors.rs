@@ -74,6 +74,8 @@ pub struct IssueRow {
     pub users_affected: i64,
     /// Whether an agent has already looked at this.
     pub has_analysis: bool,
+    /// `queued` while the issue waits for an agent, `claimed` while one is working on it.
+    pub triage: Option<String>,
     /// First seen inside the last 24 hours. Computed server-side: the WASM client has no
     /// clock without chrono's `wasmbind`, and the list refetches often enough to stay fresh.
     pub is_new: bool,
@@ -401,6 +403,7 @@ mod convert {
                 users_affected: item.users_affected,
                 // Filled in by the caller, which knows which issues have analyses.
                 has_analysis: false,
+                triage: item.triage,
                 is_new: now - issue.first_seen < chrono::Duration::hours(24),
                 last_seen_ago: ago(issue.last_seen, now),
             }

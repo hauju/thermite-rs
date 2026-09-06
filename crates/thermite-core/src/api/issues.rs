@@ -70,6 +70,10 @@ pub struct IssueListItem {
     pub counts: Vec<i64>,
     /// Distinct users this issue has hit. 0 when the SDK sends no user context.
     pub users_affected: i64,
+    /// Where the issue stands in the triage queue: `queued` while its notification waits for an
+    /// agent, `claimed` while one holds the lease. Absent once the work is acked, or if the issue
+    /// was never queued. An agent listing issues can tell what is already in hand.
+    pub triage: Option<String>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -302,15 +306,41 @@ pub async fn for_project(
     let ids: Vec<i64> = issues.iter().map(|i| i.id).collect();
     let mut sparklines = crate::api::stats::sparklines(db, &ids).await?;
     let mut users = users_affected(db, &ids).await?;
+    let mut triage = triage_state(db, &ids).await?;
 
     Ok(issues
         .into_iter()
         .map(|issue| IssueListItem {
             counts: sparklines.remove(&issue.id).unwrap_or_default(),
             users_affected: users.remove(&issue.id).unwrap_or(0),
+            triage: triage.remove(&issue.id),
             issue,
         })
         .collect())
+}
+
+/// The triage state of a page of issues, in one query. An issue with an unacked notification is
+/// `claimed` while the lease on it is live and `queued` otherwise — an expired lease is work that
+/// is available again, not work in hand. Newest notification wins, since a regression re-queues
+/// an issue that was acked before.
+async fn triage_state(
+    db: &PgPool,
+    ids: &[i64],
+) -> AppResult<std::collections::HashMap<i64, String>> {
+    let rows: Vec<(i64, String)> = sqlx::query_as(
+        "select distinct on (issue_id)
+                issue_id,
+                case when lease_until > now() then 'claimed' else 'queued' end
+           from notifications
+          where issue_id = any($1)
+            and acked_at is null
+          order by issue_id, id desc",
+    )
+    .bind(ids)
+    .fetch_all(db)
+    .await?;
+
+    Ok(rows.into_iter().collect())
 }
 
 /// Distinct-user counts for a page of issues, in one query — from the counter `digest()`

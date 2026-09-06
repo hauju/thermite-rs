@@ -412,6 +412,20 @@ fn IssueCard(row: IssueRow) -> Element {
                         if row.is_new {
                             span { class: "badge badge-sm badge-warning badge-outline", "new" }
                         }
+                        // The triage loop, live: an agent holds this right now, or nobody has
+                        // picked it up.
+                        match row.triage.as_deref() {
+                            Some("claimed") => rsx! {
+                                span { class: "badge badge-sm badge-primary gap-1.5",
+                                    span { class: "w-1.5 h-1.5 rounded-full bg-current animate-pulse" }
+                                    "agent working"
+                                }
+                            },
+                            Some("queued") => rsx! {
+                                span { class: "badge badge-sm badge-neutral", "awaiting triage" }
+                            },
+                            _ => rsx! {},
+                        }
                         // Signals that an agent already did the work of diagnosing this.
                         if row.has_analysis {
                             span { class: "badge badge-sm badge-primary badge-outline", "analysed" }

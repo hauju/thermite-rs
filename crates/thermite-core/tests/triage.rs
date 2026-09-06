@@ -202,6 +202,42 @@ async fn claiming_hides_the_item_from_the_next_caller(db: PgPool) {
     assert!(pending.as_array().unwrap().is_empty());
 }
 
+/// The issue list says where triage stands, so a reader (or a second agent) can tell an issue
+/// nobody has picked up from one an agent is working on right now.
+#[sqlx::test(migrations = "../../migrations")]
+async fn the_issue_list_shows_where_triage_stands(db: PgPool) {
+    let project_id = setup(&db).await;
+    ingest_error(&db, project_id, &"1".repeat(32), "ValueError", "bad input").await;
+
+    let triage_of = |db: PgPool| async move {
+        let issues = json_of(&db, get("/api/v1/projects/demo/issues"), StatusCode::OK).await;
+        issues[0]["triage"].clone()
+    };
+
+    assert_eq!(triage_of(db.clone()).await, json!("queued"));
+
+    let claimed = json_of(
+        &db,
+        post("/api/v1/triage/claim", json!({ "claimed_by": "loop-a" })),
+        StatusCode::OK,
+    )
+    .await;
+    assert_eq!(triage_of(db.clone()).await, json!("claimed"));
+
+    let id = claimed[0]["id"].as_i64().unwrap();
+    json_of(
+        &db,
+        post(&format!("/api/v1/triage/{id}/ack"), json!({})),
+        StatusCode::OK,
+    )
+    .await;
+    assert_eq!(
+        triage_of(db.clone()).await,
+        Value::Null,
+        "acked work is no longer in the queue"
+    );
+}
+
 #[sqlx::test(migrations = "../../migrations")]
 async fn an_expired_lease_makes_the_work_available_again(db: PgPool) {
     let project_id = setup(&db).await;
