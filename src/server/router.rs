@@ -54,6 +54,9 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
     // Deliver new-issue/regression alerts to email/webhook, if configured (see server::alerts).
     server::alerts::spawn(app_state.clone());
 
+    // Keep the public demo project showing recent activity, if one is configured.
+    server::demo_feed::spawn(app_state.clone());
+
     // Prune expired sessions hourly so the table doesn't grow unbounded.
     tokio::task::spawn(
         session_store

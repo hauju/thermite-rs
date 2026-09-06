@@ -78,6 +78,18 @@ pub async fn list(
 }
 
 /// Shared with the dashboard and the MCP `release_health` tool.
+/// The most recently first-seen release of a project — the one a demo feeder should keep
+/// reporting, so the release picture stays coherent.
+pub async fn latest_version(db: &PgPool, project_id: i64) -> AppResult<Option<String>> {
+    let row: Option<(String,)> = sqlx::query_as(
+        "select version from releases where project_id = $1 order by id desc limit 1",
+    )
+    .bind(project_id)
+    .fetch_optional(db)
+    .await?;
+    Ok(row.map(|(v,)| v))
+}
+
 pub async fn for_project(
     db: &PgPool,
     slug: &str,

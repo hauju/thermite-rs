@@ -141,7 +141,8 @@ server. Anything server-side needs `--no-default-features --features server`, wh
     - `THERMITE_DEMO_PROJECT` — slug of one project anyone may read **without signing in**: its
       board and its issues, stack traces, breadcrumbs and user context included. The DSN and
       alert routing stay hidden, and nothing can be changed. Point it only at a project that
-      receives synthetic or public data.
+      receives synthetic or public data — the instance keeps it alive by raising a playground
+      event into it every 10 to 30 minutes.
   </Accordion>
   <Accordion title="Alerting">
     - `THERMITE_ALERT_EMAIL` — comma-separated recipients

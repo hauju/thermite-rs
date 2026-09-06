@@ -403,7 +403,9 @@ session: `errors_data.rs` decides per request (`reader` / `allow_read`) and ever
 serve a visitor checks the project it is about to return — issue- and event-id reads resolve the
 project first. `get_project` withholds the DSN, component keys and alert routing from a visitor;
 writes keep requiring a session, and the pages hide the controls. The MCP and REST surfaces are
-untouched. The rule is a pure function with tests; keep it that way.
+untouched. The rule is a pure function with tests; keep it that way. While the flag is set,
+`server::demo_feed` raises a playground event into that project every 10 to 30 minutes at the
+release it last saw, so the demo never goes flat and never reads as a new deploy.
 
 Pages use `use_resource` rather than `use_server_future`, deliberately: these are authenticated views
 behind skeletons, and blocking SSR on database queries buys nothing. There is no hydration mismatch
