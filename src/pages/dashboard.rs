@@ -4,14 +4,16 @@ use dioxus::prelude::*;
 
 use crate::components::logo::ThermiteMark;
 use crate::components::sparkline::Sparkline;
-use crate::errors_data::{project_overview, recent_issues};
-use crate::models::errors::{FeedRow, ProjectOverviewRow, level_class, thousands};
+use crate::components::toast::{ToastLevel, show_toast};
+use crate::errors_data::{dead_letters, project_overview, recent_issues, retry_alert};
+use crate::models::errors::{DeadLetterRow, FeedRow, ProjectOverviewRow, level_class, thousands};
 use crate::routes::Route;
 
 #[component]
 pub fn Dashboard() -> Element {
-    let overview = use_resource(move || async move { project_overview().await });
+    let mut overview = use_resource(move || async move { project_overview().await });
     let feed = use_resource(move || async move { recent_issues().await });
+    let mut dead = use_resource(move || async move { dead_letters().await });
 
     rsx! {
         div { class: "max-w-4xl",
@@ -42,6 +44,30 @@ pub fn Dashboard() -> Element {
                 },
                 Some(Ok(rows)) => rsx! {
                     Totals { rows: rows.clone() }
+                    // Alerts nobody received come first: the channel is broken, and no alert can
+                    // say so. Only rendered when there are any.
+                    if let Some(Ok(letters)) = &*dead.read_unchecked() && !letters.is_empty() {
+                        section { class: "mb-6",
+                            h2 { class: "text-sm font-semibold uppercase tracking-wide text-error mb-1",
+                                "Undeliverable alerts"
+                            }
+                            p { class: "text-xs text-base-content/60 mb-2",
+                                "Delivery gave up on these, so nobody was told. Fix the channel, then retry."
+                            }
+                            div { class: "flex flex-col gap-2",
+                                for row in letters.iter().cloned() {
+                                    DeadLetterCard {
+                                        key: "{row.id}",
+                                        row,
+                                        on_retried: move |()| {
+                                            dead.restart();
+                                            overview.restart();
+                                        },
+                                    }
+                                }
+                            }
+                        }
+                    }
                     // What happened, before what exists: the feed is the reason to open this
                     // page; the per-project cards below are the map.
                     section { class: "mb-6",
@@ -113,6 +139,62 @@ fn Totals(rows: Vec<ProjectOverviewRow>) -> Element {
                 title: "Need attention",
                 value: attention.to_string(),
                 accent: attention > 0,
+            }
+        }
+    }
+}
+
+/// One abandoned alert, with the retry as its one action.
+#[component]
+fn DeadLetterCard(row: DeadLetterRow, on_retried: EventHandler<()>) -> Element {
+    let badge = level_class(&row.level);
+    let id = row.id;
+    let mut retrying = use_signal(|| false);
+
+    rsx! {
+        div { class: "card bg-base-200 border border-error/40",
+            div { class: "card-body py-3 flex-row items-center gap-4",
+                div { class: "flex-1 min-w-0",
+                    div { class: "flex items-center gap-2 flex-wrap",
+                        span { class: "badge badge-sm badge-neutral", "{row.project_name}" }
+                        span { class: "badge badge-sm {badge}", "{row.level}" }
+                        span { class: "badge badge-sm badge-neutral",
+                            if row.kind == "regression" { "regression" } else { "new issue" }
+                        }
+                        if row.email_done {
+                            span { class: "badge badge-sm badge-success badge-outline", "email got through" }
+                        }
+                        if row.webhook_done {
+                            span { class: "badge badge-sm badge-success badge-outline", "webhook got through" }
+                        }
+                    }
+                    Link {
+                        to: Route::IssueDetail { id: row.issue_id },
+                        class: "font-medium truncate mt-1 block hover:text-primary",
+                        "{row.title}"
+                    }
+                    div { class: "text-xs text-base-content/50",
+                        "gave up after {row.attempts} attempts, {row.failed_ago}"
+                    }
+                }
+                button {
+                    class: "btn btn-sm btn-outline btn-error shrink-0",
+                    disabled: retrying(),
+                    onclick: move |_| async move {
+                        retrying.set(true);
+                        match retry_alert(id).await {
+                            Ok(true) => show_toast("Alert queued again", ToastLevel::Success),
+                            Ok(false) => show_toast("Nothing left to retry", ToastLevel::Warning),
+                            Err(e) => show_toast(format!("Could not retry: {e}"), ToastLevel::Error),
+                        }
+                        retrying.set(false);
+                        on_retried.call(());
+                    },
+                    if retrying() {
+                        span { class: "loading loading-spinner loading-xs" }
+                    }
+                    "Retry"
+                }
             }
         }
     }

@@ -6,7 +6,7 @@
 use dioxus::prelude::*;
 
 use crate::models::errors::{
-    EventDetail, EventRef, FeedRow, IssueDetail, IssueQuery, IssueRow, MonitorRow,
+    DeadLetterRow, EventDetail, EventRef, FeedRow, IssueDetail, IssueQuery, IssueRow, MonitorRow,
     ProjectOverviewRow, ProjectStats, ProjectSummary, ReleaseHealthRow,
 };
 
@@ -54,6 +54,25 @@ pub async fn recent_issues() -> Result<Vec<FeedRow>, ServerFnError> {
         .await
         .map_err(app_error)?;
     Ok(items.into_iter().map(FeedRow::from).collect())
+}
+
+/// Alerts delivery gave up on, most recent first.
+#[post("/api/errors/alerts/dead", session: auth::UserSession)]
+pub async fn dead_letters() -> Result<Vec<DeadLetterRow>, ServerFnError> {
+    let state = thermite(session)?;
+    let rows = thermite_core::alerts::dead_lettered(&state.db)
+        .await
+        .map_err(app_error)?;
+    Ok(rows.into_iter().map(DeadLetterRow::from).collect())
+}
+
+/// Puts a dead-lettered alert back in the queue. `false` when there was nothing to retry.
+#[post("/api/errors/alerts/retry", session: auth::UserSession)]
+pub async fn retry_alert(id: i64) -> Result<bool, ServerFnError> {
+    let state = thermite(session)?;
+    thermite_core::alerts::retry(&state.db, id)
+        .await
+        .map_err(app_error)
 }
 
 /// One project's summary, for the settings page. Reuses the list query — a self-hosted

@@ -9,6 +9,7 @@
 //! sessions, OAuth — and layers its own check over this router.
 
 pub mod admin;
+pub mod alerts;
 pub mod analyses;
 pub mod fixes;
 pub mod issues;
@@ -62,6 +63,8 @@ pub fn routes() -> Router<ThermiteState> {
         .route("/api/v1/triage/pending", get(triage::pending))
         .route("/api/v1/triage/claim", post(triage::claim))
         .route("/api/v1/triage/{id}/ack", post(triage::ack))
+        .route("/api/v1/alerts/dead", get(alerts::dead))
+        .route("/api/v1/alerts/{id}/retry", post(alerts::retry))
         .route("/api/v1/triage/{id}/release", post(triage::release))
         .route(
             "/api/v1/issues/{id}/analyses",

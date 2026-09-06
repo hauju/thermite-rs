@@ -23,6 +23,7 @@
 //! but an outage longer than any fixed window must lose nothing.
 
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 use sqlx::PgPool;
 
 use crate::error::AppResult;
@@ -200,4 +201,67 @@ pub async fn record_failure(db: &PgPool, id: i64, max_attempts: i32) -> AppResul
     .await?;
 
     Ok(failed)
+}
+
+/// An alert delivery gave up on. Nobody was told, and no alert can say so — which is why the
+/// dashboard shows these and lets a person put them back in the queue.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct DeadLetter {
+    pub id: i64,
+    /// `new_issue` or `regression`.
+    pub kind: String,
+    pub issue_id: i64,
+    pub project_slug: String,
+    pub project_name: String,
+    pub title: String,
+    pub level: String,
+    pub attempts: i32,
+    pub failed_at: DateTime<Utc>,
+    /// Channels that did get through before the row was abandoned.
+    pub email_done: bool,
+    pub webhook_done: bool,
+}
+
+/// Every dead-lettered alert, most recent failure first.
+pub async fn dead_lettered(db: &PgPool) -> AppResult<Vec<DeadLetter>> {
+    let rows: Vec<DeadLetter> = sqlx::query_as(
+        "select n.id, n.kind, n.issue_id,
+                p.slug as project_slug, p.name as project_name,
+                i.title, i.level,
+                n.alert_attempts as attempts,
+                n.alert_failed_at as failed_at,
+                n.alert_email_at is not null as email_done,
+                n.alert_webhook_at is not null as webhook_done
+           from notifications n
+           join issues i on i.id = n.issue_id
+           join projects p on p.id = n.project_id
+          where n.alert_failed_at is not null
+            and n.alerted_at is null
+          order by n.alert_failed_at desc
+          limit 100",
+    )
+    .fetch_all(db)
+    .await?;
+    Ok(rows)
+}
+
+/// Puts a dead-lettered alert back in the queue with a fresh attempt budget. Channels that
+/// already succeeded stay marked, so the retry sends only what never arrived. Returns whether
+/// there was a dead-lettered row to reset.
+pub async fn retry(db: &PgPool, id: i64) -> AppResult<bool> {
+    let reset = sqlx::query(
+        "update notifications
+            set alert_failed_at = null,
+                alert_attempts = 0,
+                alert_next_attempt_at = null,
+                alert_lease_until = null
+          where id = $1
+            and alert_failed_at is not null
+            and alerted_at is null",
+    )
+    .bind(id)
+    .execute(db)
+    .await?
+    .rows_affected();
+    Ok(reset > 0)
 }

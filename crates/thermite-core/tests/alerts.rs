@@ -256,6 +256,49 @@ async fn failures_back_off_and_eventually_dead_letter(db: PgPool) {
     assert!(alerts::claim(&db, 50, true).await.unwrap().is_empty());
 }
 
+/// A dead-lettered alert is listed for a person, and a retry puts it back in the queue with
+/// what already got through still marked.
+#[sqlx::test(migrations = "../../migrations")]
+async fn a_dead_letter_is_listed_and_a_retry_requeues_it(db: PgPool) {
+    let project_id = create_project(&db, "demo", PUBLIC_KEY).await;
+    alerts::ensure_backlog_floor(&db).await.unwrap();
+    ingest(
+        &db,
+        project_id,
+        error_event(&"1".repeat(32), "ValueError", "boom"),
+    )
+    .await;
+    let alert_id = alerts::claim(&db, 50, true).await.unwrap()[0].id;
+    alerts::mark_channel(&db, alert_id, alerts::Channel::Email)
+        .await
+        .unwrap();
+    assert!(alerts::record_failure(&db, alert_id, 1).await.unwrap());
+
+    let dead = alerts::dead_lettered(&db).await.unwrap();
+    assert_eq!(dead.len(), 1);
+    assert_eq!(dead[0].id, alert_id);
+    assert_eq!(dead[0].project_slug, "demo");
+    assert_eq!(dead[0].title, "ValueError: boom");
+    assert_eq!(dead[0].attempts, 1);
+    assert!(dead[0].email_done && !dead[0].webhook_done);
+
+    assert!(alerts::retry(&db, alert_id).await.unwrap());
+    assert!(alerts::dead_lettered(&db).await.unwrap().is_empty());
+    let again = alerts::claim(&db, 50, true).await.unwrap();
+    assert_eq!(
+        again.len(),
+        1,
+        "the retry must be offered to the loop again"
+    );
+    assert!(
+        again[0].email_done,
+        "the channel that got through stays done"
+    );
+
+    // Nothing dead-lettered under that id any more: a second retry is a no-op, and says so.
+    assert!(!alerts::retry(&db, alert_id).await.unwrap());
+}
+
 #[sqlx::test(migrations = "../../migrations")]
 async fn channel_success_survives_into_the_retry(db: PgPool) {
     let project_id = create_project(&db, "demo", PUBLIC_KEY).await;

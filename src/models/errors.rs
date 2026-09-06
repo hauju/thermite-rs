@@ -37,6 +37,23 @@ pub struct ProjectKey {
 }
 
 /// One project on the dashboard overview, with everything that flags it as needing attention.
+/// An alert delivery gave up on, for the dashboard's retry list.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DeadLetterRow {
+    pub id: i64,
+    /// `new_issue` or `regression`.
+    pub kind: String,
+    pub issue_id: i64,
+    pub project_slug: String,
+    pub project_name: String,
+    pub title: String,
+    pub level: String,
+    pub attempts: i32,
+    pub failed_ago: String,
+    pub email_done: bool,
+    pub webhook_done: bool,
+}
+
 /// One row of the dashboard feed: an issue that appeared or came back in the last 24 hours.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FeedRow {
@@ -500,6 +517,24 @@ mod convert {
                 crashed: health.crashed,
                 crash_free_rate: health.crash_free_rate,
                 series: health.series,
+            }
+        }
+    }
+
+    impl From<thermite_core::alerts::DeadLetter> for DeadLetterRow {
+        fn from(d: thermite_core::alerts::DeadLetter) -> Self {
+            Self {
+                id: d.id,
+                kind: d.kind,
+                issue_id: d.issue_id,
+                project_slug: d.project_slug,
+                project_name: d.project_name,
+                title: d.title,
+                level: d.level,
+                attempts: d.attempts,
+                failed_ago: ago(d.failed_at, chrono::Utc::now()),
+                email_done: d.email_done,
+                webhook_done: d.webhook_done,
             }
         }
     }
