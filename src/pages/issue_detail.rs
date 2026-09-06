@@ -5,7 +5,7 @@ use dioxus::prelude::*;
 use dioxus_free_icons::{Icon, icons::ld_icons::*};
 
 use crate::components::toast::{ToastLevel, show_toast};
-use crate::errors_data::{event_detail, issue_detail, issue_events, set_issue_status};
+use crate::errors_data::{event_detail, issue_detail, issue_events, post_note, set_issue_status};
 use crate::models::errors::{
     Analysis, Breadcrumb, ContextGroup, EventDetail, EventRef, ExceptionValue, Frame, IssueTag,
     level_class,
@@ -175,18 +175,19 @@ pub fn IssueDetail(id: i64) -> Element {
                         }
                     }
 
-                    // Agent findings sit above the stack trace: if something already worked this
-                    // out, reading it first is cheaper than re-deriving it.
-                    if !detail.analyses.is_empty() {
-                        section {
-                            h2 { class: "text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-2",
-                                "Analysis"
+                    // Findings sit above the stack trace: if something already worked this out,
+                    // reading it first is cheaper than re-deriving it. Agents post analyses;
+                    // people leave notes, and the form is always there because the note that
+                    // matters most is the one correcting an agent that has not run yet.
+                    section {
+                        h2 { class: "text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-2",
+                            "Analysis"
+                        }
+                        div { class: "flex flex-col gap-3",
+                            for analysis in detail.analyses.iter().cloned() {
+                                AnalysisCard { analysis }
                             }
-                            div { class: "flex flex-col gap-3",
-                                for analysis in detail.analyses.iter().cloned() {
-                                    AnalysisCard { analysis }
-                                }
-                            }
+                            NoteForm { issue_id: id, on_posted: move |()| issue.restart() }
                         }
                     }
 
@@ -377,8 +378,81 @@ fn Fact(label: &'static str, value: String) -> Element {
     }
 }
 
+/// One line of text and a button. Kept deliberately smaller than the agent cards around it.
+#[component]
+fn NoteForm(issue_id: i64, on_posted: EventHandler<()>) -> Element {
+    let mut text = use_signal(String::new);
+    let mut saving = use_signal(|| false);
+
+    let submit = move || async move {
+        if text().trim().is_empty() {
+            return;
+        }
+        saving.set(true);
+        let result = post_note(issue_id, text()).await;
+        saving.set(false);
+        match result {
+            Ok(()) => {
+                show_toast("Note added", ToastLevel::Success);
+                text.set(String::new());
+                on_posted.call(());
+            }
+            Err(e) => show_toast(format!("Could not add the note: {e}"), ToastLevel::Error),
+        }
+    };
+
+    rsx! {
+        form {
+            class: "card bg-base-200 border border-dashed border-base-300",
+            onsubmit: move |e| {
+                e.prevent_default();
+                async move { submit().await }
+            },
+            div { class: "card-body py-3 gap-2",
+                textarea {
+                    class: "textarea textarea-sm w-full font-sans",
+                    rows: 2,
+                    placeholder: "Add a note — what you found, or what the agent got wrong. The next agent to pick this up reads it too.",
+                    value: "{text}",
+                    oninput: move |e| text.set(e.value()),
+                }
+                div { class: "flex justify-end",
+                    button {
+                        class: "btn btn-sm btn-primary gap-1.5",
+                        r#type: "submit",
+                        disabled: saving() || text().trim().is_empty(),
+                        if saving() {
+                            span { class: "loading loading-spinner loading-xs" }
+                        } else {
+                            Icon { icon: LdNotebookPen, width: 14, height: 14 }
+                        }
+                        "Add note"
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[component]
 fn AnalysisCard(analysis: Analysis) -> Element {
+    // A person wrote this: no confidence, no fix, just the text — on the secondary hue so it
+    // reads as a different voice from the agents' cards.
+    if analysis.note {
+        return rsx! {
+            div { class: "card bg-base-200 border border-base-300 border-l-4 border-l-secondary",
+                div { class: "card-body gap-2",
+                    div { class: "flex items-center gap-2 flex-wrap text-xs",
+                        span { class: "text-secondary", Icon { icon: LdUserRound, width: 16, height: 16 } }
+                        span { class: "badge badge-sm badge-secondary badge-outline", "{analysis.source}" }
+                        span { class: "text-base-content/40 ml-auto", "{short_time(&analysis.created_at)}" }
+                    }
+                    p { class: "text-sm whitespace-pre-wrap", "{analysis.summary}" }
+                }
+            }
+        };
+    }
+
     let confidence = analysis.confidence.clone().unwrap_or_default();
     let confidence_class = match confidence.as_str() {
         "high" => "badge-success",

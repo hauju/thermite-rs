@@ -217,6 +217,11 @@ the reviewer's one action. Three things there are load-bearing:
   `resolved_in_release_id`; doing it against an unmerged fix makes the next event from the
   still-broken deploy read as a regression.
 
+**A person can answer back.** The issue page has a note form; a note is stored as an analysis
+with `metadata.kind = "note"` and the user's name as `source`, so an agent reading `get_issue`
+sees "not the cache, the retry loop" beside the machine findings. The dashboard renders notes on
+the secondary hue and without the confidence or fix affordances.
+
 **A proposed fix is then graded against production** (`api::fixes`), which is the half that
 makes the loop worth closing: `pending` while no release has shipped since the fix, `held` when
 releases shipped and the issue was in none of them, `regressed` when it came back in a release

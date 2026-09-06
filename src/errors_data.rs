@@ -342,6 +342,35 @@ pub async fn event_detail(event_id: String) -> Result<EventDetail, ServerFnError
     Ok(event.into())
 }
 
+/// A note from a person, kept beside the agents' analyses so the next agent to pick the issue
+/// up reads it too — "not the cache, the retry loop" is the most valuable line on the page.
+/// Stored as an analysis with `metadata.kind = "note"` and the user's name as `source`.
+#[post("/api/errors/issue/note", session: auth::UserSession)]
+pub async fn post_note(issue_id: i64, text: String) -> Result<(), ServerFnError> {
+    let user = session
+        .data()
+        .map_err(|_| ServerFnError::from(AppError::Unauthorized))?;
+    let state = crate::server::state::AppState::global().thermite.clone();
+
+    thermite_core::api::analyses::record(
+        &state.db,
+        issue_id,
+        thermite_core::api::analyses::NewAnalysis {
+            source: user.username,
+            summary: text.trim().to_string(),
+            details: None,
+            suggested_fix: None,
+            confidence: None,
+            release: None,
+            fix_url: None,
+            metadata: Some(serde_json::json!({ "kind": "note" })),
+        },
+    )
+    .await
+    .map_err(app_error)?;
+    Ok(())
+}
+
 #[post("/api/errors/issue/status", session: auth::UserSession)]
 pub async fn set_issue_status(
     id: i64,

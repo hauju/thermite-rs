@@ -274,6 +274,9 @@ pub struct Analysis {
     pub fix_verdict: Option<String>,
     /// For `regressed`, the release since the fix that the issue came back in.
     pub regressed_in: Option<String>,
+    /// Written by a person from the issue page rather than by an agent: `summary` is the whole
+    /// note, and the rest is empty.
+    pub note: bool,
     pub created_at: String,
 }
 
@@ -561,6 +564,12 @@ mod convert {
                 fix_url: a.fix_url,
                 fix_verdict: a.fix_verdict,
                 regressed_in: a.regressed_in,
+                note: a
+                    .metadata
+                    .as_ref()
+                    .and_then(|m| m.get("kind"))
+                    .and_then(Value::as_str)
+                    == Some("note"),
                 created_at: a.created_at.to_rfc3339(),
             }
         }
@@ -658,6 +667,28 @@ mod convert {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn a_note_is_told_apart_by_its_metadata() {
+            let analysis = |metadata: Option<Value>| thermite_core::api::analyses::Analysis {
+                id: 1,
+                issue_id: 1,
+                source: "hauke".into(),
+                summary: "not the cache, the retry loop".into(),
+                details: None,
+                suggested_fix: None,
+                confidence: None,
+                release: None,
+                fix_url: None,
+                fix_verdict: None,
+                regressed_in: None,
+                metadata,
+                created_at: chrono::Utc::now(),
+            };
+            assert!(Analysis::from(analysis(Some(serde_json::json!({"kind": "note"})))).note);
+            assert!(!Analysis::from(analysis(Some(serde_json::json!({"tokens": 12})))).note);
+            assert!(!Analysis::from(analysis(None)).note);
+        }
 
         fn entries(value: serde_json::Value) -> Vec<(String, String)> {
             group("Contexts", Some(&value)).unwrap().entries
