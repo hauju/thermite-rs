@@ -5,9 +5,10 @@ use dioxus::prelude::*;
 use dioxus_free_icons::{Icon, icons::ld_icons::*};
 
 use crate::components::toast::{ToastLevel, show_toast};
-use crate::errors_data::{issue_detail, set_issue_status};
+use crate::errors_data::{event_detail, issue_detail, issue_events, set_issue_status};
 use crate::models::errors::{
-    Analysis, Breadcrumb, ContextGroup, EventDetail, ExceptionValue, Frame, IssueTag, level_class,
+    Analysis, Breadcrumb, ContextGroup, EventDetail, EventRef, ExceptionValue, Frame, IssueTag,
+    level_class,
 };
 use crate::models::repo_links::{SourceLinks, commit_url, compare_url};
 use crate::routes::Route;
@@ -15,6 +16,26 @@ use crate::routes::Route;
 #[component]
 pub fn IssueDetail(id: i64) -> Element {
     let mut issue = use_resource(move || async move { issue_detail(id).await });
+
+    // The other retained events, newest first, and which one is on screen: 0 is the latest,
+    // which the detail already carries, so only an older pick costs a fetch.
+    let refs = use_resource(move || async move { issue_events(id).await });
+    let position = use_signal(|| 0usize);
+    let picked = use_resource(move || {
+        let pos = position();
+        let target = refs
+            .read()
+            .as_ref()
+            .and_then(|r| r.as_ref().ok())
+            .and_then(|list| list.get(pos))
+            .map(|e| e.event_id.clone());
+        async move {
+            match (pos, target) {
+                (0, _) | (_, None) => Ok(None),
+                (_, Some(event_id)) => event_detail(event_id).await.map(Some),
+            }
+        }
+    });
 
     let update_status = move |status: &'static str, in_next_release: bool| async move {
         match set_issue_status(id, status.to_string(), in_next_release).await {
@@ -176,8 +197,31 @@ pub fn IssueDetail(id: i64) -> Element {
                     }
 
                     match &detail.latest_event {
-                        Some(event) => rsx! {
-                            EventView { event: event.clone(), repo_url: detail.repo_url.clone() }
+                        Some(latest) => rsx! {
+                            if let Some(Ok(list)) = &*refs.read_unchecked() && list.len() > 1 {
+                                EventNav {
+                                    refs: list.clone(),
+                                    total: detail.times_seen,
+                                    position,
+                                }
+                            }
+                            match (position(), &*picked.read_unchecked()) {
+                                (0, _) => rsx! {
+                                    EventView { event: latest.clone(), repo_url: detail.repo_url.clone() }
+                                },
+                                (_, Some(Ok(Some(event)))) => rsx! {
+                                    EventView { event: event.clone(), repo_url: detail.repo_url.clone() }
+                                },
+                                (_, Some(Err(e))) => rsx! {
+                                    div { class: "alert alert-error", "Could not load that event: {e}" }
+                                },
+                                _ => rsx! {
+                                    div { class: "flex flex-col gap-4",
+                                        div { class: "skeleton h-8 w-1/2" }
+                                        div { class: "skeleton h-64" }
+                                    }
+                                },
+                            }
                         },
                         None => rsx! {
                             div { class: "alert", "This issue has no stored events." }
@@ -408,6 +452,58 @@ fn AnalysisCard(analysis: Analysis) -> Element {
                             "{fix}"
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/// Steps through the issue's retained events. The oldest one is where a regression diagnosis
+/// starts — it is the first event after the fix — and the latest is what the page opens on.
+#[component]
+fn EventNav(refs: Vec<EventRef>, total: i64, position: Signal<usize>) -> Element {
+    let count = refs.len();
+    let pos = position();
+    let last = count.saturating_sub(1);
+    let current = refs.get(pos).cloned();
+
+    rsx! {
+        div { class: "flex items-center gap-x-3 gap-y-2 flex-wrap text-sm rounded-xl border border-base-300 bg-base-200/60 px-4 py-2",
+            span { class: "font-medium tabular-nums", "Event {pos + 1} of {count}" }
+            // Retention has dropped the rest; the counter on the issue is the full history.
+            if total > count as i64 {
+                span { class: "text-xs text-base-content/50", "the newest {count} of {total} are retained" }
+            }
+            if let Some(current) = current {
+                span { class: "font-mono text-xs text-base-content/50", "{short_time(&current.timestamp)}" }
+                if let Some(release) = current.release {
+                    span { class: "font-mono text-xs text-base-content/50", "{release}" }
+                }
+            }
+            span { class: "ml-auto join",
+                button {
+                    class: "join-item btn btn-xs",
+                    disabled: pos == 0,
+                    onclick: move |_| position.set(0),
+                    "Latest"
+                }
+                button {
+                    class: "join-item btn btn-xs",
+                    disabled: pos == 0,
+                    onclick: move |_| position.set(pos.saturating_sub(1)),
+                    "‹ Newer"
+                }
+                button {
+                    class: "join-item btn btn-xs",
+                    disabled: pos >= last,
+                    onclick: move |_| position.set((pos + 1).min(last)),
+                    "Older ›"
+                }
+                button {
+                    class: "join-item btn btn-xs",
+                    disabled: pos >= last,
+                    onclick: move |_| position.set(last),
+                    "Oldest"
                 }
             }
         }

@@ -393,6 +393,37 @@ async fn lists_the_events_of_an_issue(db: PgPool) {
     );
 }
 
+/// The dashboard steps through an issue's events with this; it must agree with the full listing
+/// on order, and cost nothing like it.
+#[sqlx::test(migrations = "../../migrations")]
+async fn event_refs_point_at_the_events_newest_first(db: PgPool) {
+    let project_id = create_project(&db, "demo", PUBLIC_KEY).await;
+    let newest = hours_ago(1);
+    for (i, timestamp) in [hours_ago(2), newest.clone()].into_iter().enumerate() {
+        let mut event = error_event(&format!("{i}{}", "1".repeat(31)), "IOError", "boom");
+        event["timestamp"] = json!(timestamp);
+        event["release"] = json!(format!("r{i}"));
+        ingest(&db, project_id, event).await;
+    }
+    let issue_id: i64 = sqlx::query_scalar("select id from issues")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+
+    let refs = thermite_core::api::issues::event_refs(&db, issue_id, None)
+        .await
+        .unwrap();
+
+    assert_eq!(refs.len(), 2);
+    assert_eq!(refs[0].timestamp, parse_ts(&newest));
+    assert_eq!(refs[0].release.as_deref(), Some("r1"));
+    assert_eq!(
+        refs[0].event_id.simple().to_string(),
+        format!("1{}", "1".repeat(31))
+    );
+    assert_eq!(refs[1].release.as_deref(), Some("r0"));
+}
+
 fn parse_ts(raw: &str) -> chrono::DateTime<chrono::Utc> {
     chrono::DateTime::parse_from_rfc3339(raw)
         .expect("timestamp did not parse")

@@ -189,6 +189,14 @@ pub struct IssueTag {
     pub times_seen: i64,
 }
 
+/// One of an issue's events, by reference: what the event browser steps through.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EventRef {
+    pub event_id: String,
+    pub timestamp: String,
+    pub release: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EventDetail {
     pub event_id: String,
@@ -576,6 +584,16 @@ mod convert {
                     .map(str::to_string),
                 pre_context: lines(frame, "pre_context"),
                 post_context: lines(frame, "post_context"),
+            }
+        }
+    }
+
+    impl From<thermite_core::api::issues::EventRef> for EventRef {
+        fn from(e: thermite_core::api::issues::EventRef) -> Self {
+            Self {
+                event_id: e.event_id.simple().to_string(),
+                timestamp: e.timestamp.to_rfc3339(),
+                release: e.release,
             }
         }
     }

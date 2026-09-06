@@ -6,8 +6,8 @@
 use dioxus::prelude::*;
 
 use crate::models::errors::{
-    IssueDetail, IssueQuery, IssueRow, MonitorRow, ProjectOverviewRow, ProjectStats,
-    ProjectSummary, ReleaseHealthRow,
+    EventDetail, EventRef, IssueDetail, IssueQuery, IssueRow, MonitorRow, ProjectOverviewRow,
+    ProjectStats, ProjectSummary, ReleaseHealthRow,
 };
 
 #[cfg(feature = "server")]
@@ -320,6 +320,26 @@ pub async fn issue_detail(id: i64) -> Result<IssueDetail, ServerFnError> {
         regressed_from_release: detail.regressed_from_release,
         repo_url: detail.repo_url,
     })
+}
+
+/// The issue's retained events, newest first, for stepping through them on the issue page.
+#[post("/api/errors/issue/events", session: auth::UserSession)]
+pub async fn issue_events(id: i64) -> Result<Vec<EventRef>, ServerFnError> {
+    let state = thermite(session)?;
+    let refs = thermite_core::api::issues::event_refs(&state.db, id, Some(100))
+        .await
+        .map_err(app_error)?;
+    Ok(refs.into_iter().map(Into::into).collect())
+}
+
+/// One event in full, by the id the SDK assigned it.
+#[post("/api/errors/event", session: auth::UserSession)]
+pub async fn event_detail(event_id: String) -> Result<EventDetail, ServerFnError> {
+    let state = thermite(session)?;
+    let event = thermite_core::api::issues::event_by_id(&state.db, &event_id)
+        .await
+        .map_err(app_error)?;
+    Ok(event.into())
 }
 
 #[post("/api/errors/issue/status", session: auth::UserSession)]

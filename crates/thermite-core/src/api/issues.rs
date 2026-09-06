@@ -553,6 +553,37 @@ pub async fn events(
     Ok(Json(rows.into_iter().map(EventDetail::from).collect()))
 }
 
+/// A pointer to one of an issue's events: enough to pick it out of a list, without the event.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct EventRef {
+    pub event_id: Uuid,
+    pub timestamp: DateTime<Utc>,
+    pub release: Option<String>,
+}
+
+/// The issue's retained events, newest first — for stepping through them one at a time. The
+/// oldest retained one is where a regression diagnosis starts; the latest is what `detail_of`
+/// already carries.
+pub async fn event_refs(
+    db: &PgPool,
+    issue_id: i64,
+    limit: Option<i64>,
+) -> AppResult<Vec<EventRef>> {
+    let refs: Vec<EventRef> = sqlx::query_as(
+        "select event_id, timestamp, release
+           from events
+          where issue_id = $1
+          order by timestamp desc, id desc
+          limit $2",
+    )
+    .bind(issue_id)
+    .bind(page_size(limit))
+    .fetch_all(db)
+    .await?;
+
+    Ok(refs)
+}
+
 /// Looks an event up by the id the SDK assigned it, which is what appears in application logs.
 pub async fn event(
     State(state): State<ThermiteState>,
