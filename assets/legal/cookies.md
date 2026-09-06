@@ -1,6 +1,6 @@
 # Cookie Policy
 
-**Effective Date:** [Last Updated: August 26, 2026]
+**Effective Date:** [Last Updated: September 6, 2026]
 **Applies to:** [https://thermite.rs](https://thermite.rs)
 
 ---

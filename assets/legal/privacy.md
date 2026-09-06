@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Effective Date:** [Last Updated: August 26, 2026]
+**Effective Date:** [Last Updated: September 6, 2026]
 
 Welcome to Thermite (the "Service"). This Privacy Policy explains how **Hauke Jung** ("we," "us," or "our") collects, uses, and protects personal information in connection with our website **[https://thermite.rs](https://thermite.rs)** and related services.
 

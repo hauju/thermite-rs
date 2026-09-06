@@ -1,6 +1,6 @@
 # Terms of Service
 
-**Effective Date:** [Last Updated: August 26, 2026]
+**Effective Date:** [Last Updated: September 6, 2026]
 
 ## 1. Introduction / Acceptance of Terms
 Thermite is provided by Hauke Jung ("we," "us," or "our"). By accessing or using the platform, pointing an SDK at our ingest endpoint, or maintaining an account, you agree to be bound by these Terms of Service ("Terms") and any policies referenced herein. If you do not agree, you may not use the service. These Terms govern your access to and use of Thermite, available at [https://thermite.rs](https://thermite.rs), and any related services we provide.
