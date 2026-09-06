@@ -36,6 +36,57 @@ fn thermite(session: auth::UserSession) -> Result<thermite_core::ThermiteState, 
     Ok(crate::server::state::AppState::global().thermite.clone())
 }
 
+/// Who is asking. A signed-in user reads everything; a visitor reads only the demo project,
+/// when one is configured (`THERMITE_DEMO_PROJECT`). Writes always need a session.
+#[cfg(feature = "server")]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Reader {
+    User,
+    Anonymous,
+}
+
+/// The request's state and who is asking, for the reads that may serve a visitor. The caller
+/// still has to run `allow_read` against the project in question before returning anything.
+#[cfg(feature = "server")]
+fn reader(session: auth::UserSession) -> (Reader, thermite_core::ThermiteState) {
+    let reader = if session.data().is_ok() {
+        Reader::User
+    } else {
+        Reader::Anonymous
+    };
+    (
+        reader,
+        crate::server::state::AppState::global().thermite.clone(),
+    )
+}
+
+/// The rule itself, kept pure so it can be tested: anonymous reads reach exactly the configured
+/// demo project and nothing else.
+#[cfg(feature = "server")]
+fn readable(reader: Reader, demo: Option<&str>, slug: &str) -> bool {
+    reader == Reader::User || demo == Some(slug)
+}
+
+#[cfg(feature = "server")]
+fn allow_read(reader: Reader, slug: &str) -> Result<(), ServerFnError> {
+    let config = &crate::server::state::AppState::global().config;
+    if readable(reader, config.demo_project.as_deref(), slug) {
+        Ok(())
+    } else {
+        Err(ServerFnError::from(AppError::Unauthorized))
+    }
+}
+
+/// The demo project's slug, if one is configured — what the shell and the landing page need to
+/// know before anyone signs in, so this one takes no session.
+#[post("/api/errors/demo")]
+pub async fn demo_project() -> Result<Option<String>, ServerFnError> {
+    Ok(crate::server::state::AppState::global()
+        .config
+        .demo_project
+        .clone())
+}
+
 /// Every project with its attention flags, for the dashboard landing page.
 #[post("/api/errors/overview", session: auth::UserSession)]
 pub async fn project_overview() -> Result<Vec<ProjectOverviewRow>, ServerFnError> {
@@ -79,15 +130,24 @@ pub async fn retry_alert(id: i64) -> Result<bool, ServerFnError> {
 /// instance has few projects, and a second query shape would be more code than it saves.
 #[post("/api/errors/projects/one", session: auth::UserSession)]
 pub async fn get_project(slug: String) -> Result<ProjectSummary, ServerFnError> {
-    let state = thermite(session)?;
+    let (reader, state) = reader(session);
+    allow_read(reader, &slug)?;
     let projects = thermite_core::api::projects::all(&state.db, &state.config)
         .await
         .map_err(app_error)?;
-    projects
+    let mut project = projects
         .into_iter()
         .find(|p| p.slug == slug)
         .map(ProjectSummary::from)
-        .ok_or_else(|| ServerFnError::from(AppError::NotFound))
+        .ok_or_else(|| ServerFnError::from(AppError::NotFound))?;
+    // A visitor gets the board, not the credential to write into it or where its alerts go.
+    if reader == Reader::Anonymous {
+        project.dsn = String::new();
+        project.keys.clear();
+        project.alert_email = None;
+        project.alert_webhook = None;
+    }
+    Ok(project)
 }
 
 #[post("/api/errors/projects", session: auth::UserSession)]
@@ -226,7 +286,8 @@ pub async fn delete_project_key(slug: String, label: String) -> Result<(), Serve
 
 #[post("/api/errors/issues", session: auth::UserSession)]
 pub async fn list_issues(query: IssueQuery) -> Result<Vec<IssueRow>, ServerFnError> {
-    let state = thermite(session)?;
+    let (reader, state) = reader(session);
+    allow_read(reader, &query.project)?;
 
     // The component filter is just a tag filter — the label is synthesized into
     // issue_tags at ingest, exactly like environment.
@@ -264,7 +325,8 @@ pub async fn list_issues(query: IssueQuery) -> Result<Vec<IssueRow>, ServerFnErr
 /// The environments a project has reported from, most active first. Feeds the filter dropdown.
 #[post("/api/errors/environments", session: auth::UserSession)]
 pub async fn environments(project: String) -> Result<Vec<String>, ServerFnError> {
-    let state = thermite(session)?;
+    let (reader, state) = reader(session);
+    allow_read(reader, &project)?;
     let values = thermite_core::api::tags::values_of(&state.db, &project, "environment")
         .await
         .map_err(app_error)?;
@@ -275,7 +337,8 @@ pub async fn environments(project: String) -> Result<Vec<String>, ServerFnError>
 /// most active first. Feeds the filter dropdown.
 #[post("/api/errors/components", session: auth::UserSession)]
 pub async fn components(project: String) -> Result<Vec<String>, ServerFnError> {
-    let state = thermite(session)?;
+    let (reader, state) = reader(session);
+    allow_read(reader, &project)?;
     let values = thermite_core::api::tags::values_of(&state.db, &project, "component")
         .await
         .map_err(app_error)?;
@@ -285,7 +348,8 @@ pub async fn components(project: String) -> Result<Vec<String>, ServerFnError> {
 /// A project's cron monitors and whether their last run was on time.
 #[post("/api/errors/monitors", session: auth::UserSession)]
 pub async fn list_monitors(project: String) -> Result<Vec<MonitorRow>, ServerFnError> {
-    let state = thermite(session)?;
+    let (reader, state) = reader(session);
+    allow_read(reader, &project)?;
     let monitors = thermite_core::api::monitors::of_project(&state.db, &project)
         .await
         .map_err(app_error)?;
@@ -294,7 +358,8 @@ pub async fn list_monitors(project: String) -> Result<Vec<MonitorRow>, ServerFnE
 
 #[post("/api/errors/stats", session: auth::UserSession)]
 pub async fn project_stats(project: String, window: String) -> Result<ProjectStats, ServerFnError> {
-    let state = thermite(session)?;
+    let (reader, state) = reader(session);
+    allow_read(reader, &project)?;
     let stats = thermite_core::api::stats::for_project(&state.db, &project, Some(&window))
         .await
         .map_err(app_error)?;
@@ -308,7 +373,8 @@ pub async fn release_health(
     project: String,
     window: String,
 ) -> Result<Vec<ReleaseHealthRow>, ServerFnError> {
-    let state = thermite(session)?;
+    let (reader, state) = reader(session);
+    allow_read(reader, &project)?;
     let releases =
         thermite_core::api::releases::for_project(&state.db, &project, Some(&window), Some(5))
             .await
@@ -323,13 +389,14 @@ pub async fn release_health(
 
 #[post("/api/errors/issue", session: auth::UserSession)]
 pub async fn issue_detail(id: i64) -> Result<IssueDetail, ServerFnError> {
-    let state = thermite(session)?;
+    let (reader, state) = reader(session);
     let detail = thermite_core::api::issues::detail_of(&state.db, id)
         .await
         .map_err(app_error)?;
     let slug = thermite_core::api::projects::slug_of(&state.db, detail.issue.project_id)
         .await
         .map_err(app_error)?;
+    allow_read(reader, &slug)?;
     let now = chrono::Utc::now();
 
     Ok(IssueDetail {
@@ -357,7 +424,11 @@ pub async fn issue_detail(id: i64) -> Result<IssueDetail, ServerFnError> {
 /// The issue's retained events, newest first, for stepping through them on the issue page.
 #[post("/api/errors/issue/events", session: auth::UserSession)]
 pub async fn issue_events(id: i64) -> Result<Vec<EventRef>, ServerFnError> {
-    let state = thermite(session)?;
+    let (reader, state) = reader(session);
+    let slug = thermite_core::api::issues::project_slug_of_issue(&state.db, id)
+        .await
+        .map_err(app_error)?;
+    allow_read(reader, &slug)?;
     let refs = thermite_core::api::issues::event_refs(&state.db, id, Some(100))
         .await
         .map_err(app_error)?;
@@ -367,10 +438,14 @@ pub async fn issue_events(id: i64) -> Result<Vec<EventRef>, ServerFnError> {
 /// One event in full, by the id the SDK assigned it.
 #[post("/api/errors/event", session: auth::UserSession)]
 pub async fn event_detail(event_id: String) -> Result<EventDetail, ServerFnError> {
-    let state = thermite(session)?;
+    let (reader, state) = reader(session);
     let event = thermite_core::api::issues::event_by_id(&state.db, &event_id)
         .await
         .map_err(app_error)?;
+    let slug = thermite_core::api::issues::project_slug_of_issue(&state.db, event.issue_id)
+        .await
+        .map_err(app_error)?;
+    allow_read(reader, &slug)?;
     Ok(event.into())
 }
 
@@ -508,5 +583,23 @@ fn non_empty(value: &str, fallback: &str) -> String {
         fallback.to_string()
     } else {
         trimmed.to_string()
+    }
+}
+
+#[cfg(all(test, feature = "server"))]
+mod tests {
+    use super::{Reader, readable};
+
+    #[test]
+    fn a_visitor_reads_the_demo_project_and_nothing_else() {
+        assert!(readable(Reader::Anonymous, Some("demo"), "demo"));
+        assert!(!readable(Reader::Anonymous, Some("demo"), "billing"));
+        assert!(!readable(Reader::Anonymous, None, "demo"));
+    }
+
+    #[test]
+    fn a_user_reads_everything() {
+        assert!(readable(Reader::User, None, "billing"));
+        assert!(readable(Reader::User, Some("demo"), "billing"));
     }
 }

@@ -5,24 +5,49 @@ use crate::UserAuthState;
 use crate::components::command_palette::CommandPalette;
 use crate::components::logo::ThermiteMark;
 use crate::components::theme_toggle::ThemeToggle;
+use crate::errors_data::demo_project;
 use crate::routes::Route;
 
-/// Auth-gated dashboard layout with sidebar navigation.
-/// Redirects to login when user is not authenticated.
+/// Whether a route is one a visitor may see without signing in: the demo project's board, or
+/// an issue page — whether that issue belongs to the demo project is the server's call, and a
+/// wrong guess gets an error page rather than data.
+fn visitor_route(route: &Route, demo: Option<&str>) -> bool {
+    match (route, demo) {
+        (Route::Issues { slug, .. }, Some(demo)) => slug == demo,
+        (Route::IssueDetail { .. }, Some(_)) => true,
+        _ => false,
+    }
+}
+
+/// Auth-gated dashboard layout with sidebar navigation. Redirects to login when the user is not
+/// authenticated — unless a demo project is configured and this is a route into it, which a
+/// visitor gets read-only, under a banner.
 #[component]
 pub fn DashboardShell() -> Element {
     let user_auth = use_context::<Signal<UserAuthState>>();
     let nav = use_navigator();
     let mut palette = use_signal(|| false);
+    let route = use_route::<Route>();
+    let demo = use_resource(|| async { demo_project().await.ok().flatten() });
 
-    // Redirect to login when not authenticated
+    // Redirect to login when not authenticated. Waits until the demo slug is known, or every
+    // visitor would be bounced before the shell could tell them apart.
     use_effect(move || {
-        if matches!(&*user_auth.read(), UserAuthState::NotAuthenticated) {
+        let anonymous = matches!(&*user_auth.read(), UserAuthState::NotAuthenticated);
+        let demo = demo.read();
+        let Some(demo) = &*demo else { return };
+        let route = router().current::<Route>();
+        if anonymous && !visitor_route(&route, demo.as_deref()) {
             nav.push(Route::LoginPage {
                 redirect_url: "/dashboard".to_string(),
             });
         }
     });
+
+    let visiting = match &*demo.read() {
+        Some(demo) => visitor_route(&route, demo.as_deref()),
+        None => false,
+    };
 
     match &*user_auth.read() {
         UserAuthState::Loading => rsx! {
@@ -30,6 +55,7 @@ pub fn DashboardShell() -> Element {
                 span { class: "loading loading-spinner loading-lg text-primary" }
             }
         },
+        UserAuthState::NotAuthenticated if visiting => rsx! { VisitorShell {} },
         UserAuthState::NotAuthenticated => rsx! {},
         UserAuthState::Authenticated(user) => {
             let username = user.username.clone();
@@ -134,6 +160,69 @@ pub fn DashboardShell() -> Element {
                             div { class: "p-3 border-t border-base-300",
                                 UserMenu { username, email, avatar_url }
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The shell a visitor gets on the demo project: the page under a banner that says so, and a
+/// sidebar that only offers the docs and the way in. No project list, no settings, no palette —
+/// none of it would answer for a visitor anyway.
+#[component]
+fn VisitorShell() -> Element {
+    rsx! {
+        div { class: "drawer lg:drawer-open admin-shell",
+            input {
+                id: "dashboard-drawer",
+                r#type: "checkbox",
+                class: "drawer-toggle",
+            }
+            div { class: "drawer-content flex flex-col",
+                div { class: "flex items-center gap-3 px-4 py-2 text-sm border-b border-warning/40 bg-warning/10",
+                    label {
+                        r#for: "dashboard-drawer",
+                        class: "btn btn-xs btn-ghost lg:hidden",
+                        "Menu"
+                    }
+                    Icon { icon: LdEye, width: 16, height: 16, class: "text-warning shrink-0" }
+                    span { "You are looking at the live demo, read-only. Sign in to get a project of your own." }
+                    Link {
+                        to: Route::LoginPage { redirect_url: "/dashboard".to_string() },
+                        class: "btn btn-xs btn-primary ml-auto shrink-0",
+                        "Sign in"
+                    }
+                }
+                div { class: "flex-1 p-4 lg:p-8 animate-fade-up",
+                    Outlet::<Route> {}
+                }
+            }
+            div { class: "drawer-side z-40",
+                label {
+                    r#for: "dashboard-drawer",
+                    class: "drawer-overlay",
+                }
+                aside { class: "border-r border-base-300 w-64 min-h-full flex flex-col",
+                    div { class: "p-4 border-b border-base-300",
+                        Link {
+                            to: Route::Home {},
+                            class: "inline-flex items-center gap-2 font-display text-xl font-semibold tracking-tight",
+                            ThermiteMark { size: 26 }
+                            "Thermite"
+                        }
+                    }
+                    nav { class: "flex-1 flex flex-col gap-1 p-4",
+                        NavItem {
+                            to: Route::DocsPage { slug: vec!["getting-started".into(), "introduction".into()] },
+                            icon: rsx! { Icon { icon: LdBookOpen, width: 18, height: 18 } },
+                            label: "Docs",
+                        }
+                        NavItem {
+                            to: Route::LoginPage { redirect_url: "/dashboard".to_string() },
+                            icon: rsx! { Icon { icon: LdLogIn, width: 18, height: 18 } },
+                            label: "Sign in",
                         }
                     }
                 }

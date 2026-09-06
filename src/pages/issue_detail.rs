@@ -4,6 +4,7 @@
 use dioxus::prelude::*;
 use dioxus_free_icons::{Icon, icons::ld_icons::*};
 
+use crate::UserAuthState;
 use crate::components::toast::{ToastLevel, show_toast};
 use crate::errors_data::{event_detail, issue_detail, issue_events, post_note, set_issue_status};
 use crate::models::errors::{
@@ -16,6 +17,9 @@ use crate::routes::Route;
 #[component]
 pub fn IssueDetail(id: i64) -> Element {
     let mut issue = use_resource(move || async move { issue_detail(id).await });
+    // A visitor on the demo project reads; the buttons and the note form would only fail.
+    let auth = use_context::<Signal<UserAuthState>>();
+    let can_write = matches!(&*auth.read(), UserAuthState::Authenticated(_));
 
     // The other retained events, newest first, and which one is on screen: 0 is the latest,
     // which the detail already carries, so only an older pick costs a fetch.
@@ -105,7 +109,8 @@ pub fn IssueDetail(id: i64) -> Element {
                                 }
                             }
                             div { class: "flex flex-wrap gap-2 shrink-0",
-                                if detail.status == "resolved" {
+                                if !can_write {
+                                } else if detail.status == "resolved" {
                                     button {
                                         class: "btn btn-sm gap-1.5",
                                         onclick: move |_| async move { update_status("unresolved", false).await },
@@ -189,15 +194,19 @@ pub fn IssueDetail(id: i64) -> Element {
                     // reading it first is cheaper than re-deriving it. Agents post analyses;
                     // people leave notes, and the form is always there because the note that
                     // matters most is the one correcting an agent that has not run yet.
-                    section {
-                        h2 { class: "text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-2",
-                            "Analysis"
-                        }
-                        div { class: "flex flex-col gap-3",
-                            for analysis in detail.analyses.iter().cloned() {
-                                AnalysisCard { analysis }
+                    if !detail.analyses.is_empty() || can_write {
+                        section {
+                            h2 { class: "text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-2",
+                                "Analysis"
                             }
-                            NoteForm { issue_id: id, on_posted: move |()| issue.restart() }
+                            div { class: "flex flex-col gap-3",
+                                for analysis in detail.analyses.iter().cloned() {
+                                    AnalysisCard { analysis }
+                                }
+                                if can_write {
+                                    NoteForm { issue_id: id, on_posted: move |()| issue.restart() }
+                                }
+                            }
                         }
                     }
 

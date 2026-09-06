@@ -52,6 +52,7 @@ pub fn test_state(db: Database) -> AppState {
         alert_webhook: None,
         allowed_registration_emails: Vec::new(),
         allowed_registration_domains: Vec::new(),
+        demo_project: None,
         db_max_connections: 10,
         db_ingest_max_connections: 10,
     };

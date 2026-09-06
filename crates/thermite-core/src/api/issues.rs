@@ -553,6 +553,18 @@ pub async fn events(
     Ok(Json(rows.into_iter().map(EventDetail::from).collect()))
 }
 
+/// The project an issue belongs to, for a caller holding only the issue id that must decide
+/// access before reading anything else.
+pub async fn project_slug_of_issue(db: &PgPool, issue_id: i64) -> AppResult<String> {
+    let row: Option<(String,)> = sqlx::query_as(
+        "select p.slug from issues i join projects p on p.id = i.project_id where i.id = $1",
+    )
+    .bind(issue_id)
+    .fetch_optional(db)
+    .await?;
+    row.map(|(slug,)| slug).ok_or(AppError::NotFound)
+}
+
 /// A pointer to one of an issue's events: enough to pick it out of a list, without the event.
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct EventRef {

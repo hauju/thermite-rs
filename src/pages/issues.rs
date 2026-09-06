@@ -6,6 +6,7 @@ use dioxus_free_icons::{
     icons::ld_icons::{LdCopy, LdSettings},
 };
 
+use crate::UserAuthState;
 use crate::components::copy_dsn::CopyDsn;
 use crate::components::sparkline::{RateChart, Sparkline};
 use crate::components::toast::{ToastLevel, show_toast, sleep};
@@ -47,6 +48,9 @@ const KEY_LISTENER_REMOVE: &str = r#"
 #[component]
 pub fn Issues(slug: String, filters: IssueFilters) -> Element {
     let seed = filters;
+    // A visitor on the demo project sees the board and nothing that would change it.
+    let auth = use_context::<Signal<UserAuthState>>();
+    let can_write = matches!(&*auth.read(), UserAuthState::Authenticated(_));
     let mut status = use_signal(move || seed.status.unwrap_or_else(|| "unresolved".to_string()));
     let mut query = use_signal(move || seed.q.unwrap_or_default());
     let mut window = use_signal(move || seed.window.unwrap_or_else(|| "24h".to_string()));
@@ -246,6 +250,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                         nav.push(Route::IssueDetail { id });
                     }
                 }
+                "x" | "r" | "i" if !matches!(&*auth.peek(), UserAuthState::Authenticated(_)) => {}
                 "x" => {
                     if let Some(id) = current {
                         let mut set = selected.write();
@@ -358,11 +363,13 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                             }
                         }
                     }
-                    Link {
-                        to: Route::ProjectSettings { slug: slug.clone() },
-                        class: "btn btn-sm btn-ghost btn-square",
-                        "aria-label": "Project settings",
-                        Icon { icon: LdSettings, width: 16, height: 16 }
+                    if can_write {
+                        Link {
+                            to: Route::ProjectSettings { slug: slug.clone() },
+                            class: "btn btn-sm btn-ghost btn-square",
+                            "aria-label": "Project settings",
+                            Icon { icon: LdSettings, width: 16, height: 16 }
+                        }
                     }
                 }
             }
@@ -533,7 +540,12 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                             // A refresh of the first page can pull a row up out of the pages
                             // loaded after it; show it once.
                             for (i , row) in rows.iter().chain(more_rows.read().iter().filter(|r| rows.iter().all(|f| f.id != r.id))).cloned().enumerate() {
-                                IssueCard { row, selected, highlighted: cursor() == Some(i) }
+                                IssueCard {
+                                    row,
+                                    selected,
+                                    highlighted: cursor() == Some(i),
+                                    selectable: can_write,
+                                }
                             }
                         }
                         // A full first page may have more behind it; a short one cannot.
@@ -575,9 +587,11 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                         div { class: "hidden md:flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-xs text-base-content/40",
                             span { kbd { class: "kbd kbd-xs", "j" } " " kbd { class: "kbd kbd-xs", "k" } " move" }
                             span { kbd { class: "kbd kbd-xs", "↵" } " open" }
-                            span { kbd { class: "kbd kbd-xs", "x" } " select" }
-                            span { kbd { class: "kbd kbd-xs", "r" } " resolve" }
-                            span { kbd { class: "kbd kbd-xs", "i" } " ignore" }
+                            if can_write {
+                                span { kbd { class: "kbd kbd-xs", "x" } " select" }
+                                span { kbd { class: "kbd kbd-xs", "r" } " resolve" }
+                                span { kbd { class: "kbd kbd-xs", "i" } " ignore" }
+                            }
                             span { kbd { class: "kbd kbd-xs", "esc" } " clear" }
                         }
                     },
@@ -842,7 +856,12 @@ fn monitor_badge(status: Option<&str>) -> &'static str {
 /// One row. The checkbox sits beside the link rather than inside it: a click inside an anchor
 /// navigates whatever else it does, and stopping that would also stop the box from toggling.
 #[component]
-fn IssueCard(row: IssueRow, selected: Signal<BTreeSet<i64>>, highlighted: bool) -> Element {
+fn IssueCard(
+    row: IssueRow,
+    selected: Signal<BTreeSet<i64>>,
+    highlighted: bool,
+    selectable: bool,
+) -> Element {
     let badge = level_class(&row.level);
     let id = row.id;
     let checked = selected.read().contains(&id);
@@ -861,18 +880,20 @@ fn IssueCard(row: IssueRow, selected: Signal<BTreeSet<i64>>, highlighted: bool) 
         div {
             class: "card bg-base-200 border transition-colors {border} {ring}",
             "data-issue-id": "{id}",
-            div { class: "card-body py-3 pl-3 flex-row items-center gap-3",
-                input {
-                    r#type: "checkbox",
-                    class: "checkbox checkbox-sm shrink-0",
-                    "aria-label": "Select issue {id}",
-                    checked,
-                    onchange: move |_| {
-                        let mut set = selected.write();
-                        if !set.remove(&id) {
-                            set.insert(id);
-                        }
-                    },
+            div { class: if selectable { "card-body py-3 pl-3 flex-row items-center gap-3" } else { "card-body py-3 flex-row items-center gap-3" },
+                if selectable {
+                    input {
+                        r#type: "checkbox",
+                        class: "checkbox checkbox-sm shrink-0",
+                        "aria-label": "Select issue {id}",
+                        checked,
+                        onchange: move |_| {
+                            let mut set = selected.write();
+                            if !set.remove(&id) {
+                                set.insert(id);
+                            }
+                        },
+                    }
                 }
                 Link {
                     to: Route::IssueDetail { id },

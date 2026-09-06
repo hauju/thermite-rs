@@ -24,6 +24,9 @@ pub struct Config {
     pub allowed_registration_emails: Vec<String>,
     /// Email domains allowed to self-register. Empty means no domain allowlist.
     pub allowed_registration_domains: Vec<String>,
+    /// Slug of the one project anyone may read without signing in — its board and issues, with
+    /// the DSN and alert routing withheld and nothing writable. Unset: no anonymous reads.
+    pub demo_project: Option<String>,
     /// Size of the interactive pool (dashboard, sessions, API, MCP).
     pub db_max_connections: u32,
     /// Size of the ingest pool — the ceiling on concurrent event digests.
@@ -78,6 +81,7 @@ impl Config {
             allowed_registration_domains: parse_csv_lower(get_env_optional(
                 "THERMITE_ALLOWED_EMAIL_DOMAINS",
             )),
+            demo_project: get_env_optional("THERMITE_DEMO_PROJECT"),
             db_max_connections: parse_env_or("DATABASE_MAX_CONNECTIONS", 10),
             db_ingest_max_connections: parse_env_or("DATABASE_INGEST_MAX_CONNECTIONS", 10),
         })

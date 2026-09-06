@@ -2,11 +2,13 @@ use dioxus::prelude::*;
 use dioxus_free_icons::{Icon, icons::ld_icons::*};
 
 use crate::components::logo::ThermiteMark;
+use crate::errors_data::demo_project;
 use crate::routes::Route;
 
 /// Landing page.
 #[component]
 pub fn Home() -> Element {
+    let demo = use_resource(|| async { demo_project().await.ok().flatten() });
     rsx! {
         section { class: "relative overflow-hidden",
             // Ambient hero backdrop: soft azure glow + masked guideline grid.
@@ -42,6 +44,16 @@ pub fn Home() -> Element {
                             class: "btn btn-primary btn-lg btn-strong rounded-xl gap-2",
                             "Get Started"
                             Icon { icon: LdArrowRight, width: 18, height: 18 }
+                        }
+                        // The live board, when this instance exposes one: the shortest path to
+                        // "what does it actually look like".
+                        if let Some(Some(slug)) = demo() {
+                            Link {
+                                to: Route::issues(slug),
+                                class: "btn btn-outline btn-lg rounded-xl gap-2",
+                                Icon { icon: LdEye, width: 18, height: 18 }
+                                "See the live demo"
+                            }
                         }
                         Link {
                             to: Route::DocsPage { slug: vec!["getting-started".into(), "introduction".into()] },

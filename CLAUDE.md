@@ -398,6 +398,13 @@ alerts — read from `api::overview`, counters and rollups only), `/projects`, `
 here, the projects list only shows what you copy into an SDK), `/issues/{id}`. Server functions in
 `src/errors_data.rs` call `thermite-core` directly rather than round-tripping through `/api/v1`.
 
+**One project can be public.** `THERMITE_DEMO_PROJECT` names a slug anyone may read without a
+session: `errors_data.rs` decides per request (`reader` / `allow_read`) and every read that can
+serve a visitor checks the project it is about to return — issue- and event-id reads resolve the
+project first. `get_project` withholds the DSN, component keys and alert routing from a visitor;
+writes keep requiring a session, and the pages hide the controls. The MCP and REST surfaces are
+untouched. The rule is a pure function with tests; keep it that way.
+
 Pages use `use_resource` rather than `use_server_future`, deliberately: these are authenticated views
 behind skeletons, and blocking SSR on database queries buys nothing. There is no hydration mismatch
 because both server and client start from `None`.

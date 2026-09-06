@@ -91,3 +91,6 @@ Running your own instance:
 - Point `THERMITE_DSN` self-reporting at a *different* instance or project. An instance reporting its
   own ingest failures into the ingest that is failing loses exactly the events worth having.
 - Do not expose the PostgreSQL port. `compose.yaml` binds it to `127.0.0.1` for this reason.
+- `THERMITE_DEMO_PROJECT` makes one project readable by anyone — every stack trace, breadcrumb
+  and user context in it. Leave it unset unless that project only ever receives synthetic or
+  public data.
