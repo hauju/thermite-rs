@@ -9,6 +9,7 @@ pub mod routes;
 
 #[cfg(feature = "server")]
 mod server;
+mod version;
 
 use components::logo::ThermiteMarkDefs;
 use components::toast::{ToastManager, ToastProvider};

@@ -7,6 +7,7 @@ use crate::components::logo::ThermiteMark;
 use crate::components::theme_toggle::ThemeToggle;
 use crate::errors_data::demo_project;
 use crate::routes::Route;
+use crate::version::{UpdateBanner, use_build_check, use_reload_when_stale};
 
 /// Whether a route is one a visitor may see without signing in: the demo project's board, or
 /// an issue page — whether that issue belongs to the demo project is the server's call, and a
@@ -29,6 +30,8 @@ pub fn DashboardShell() -> Element {
     let mut palette = use_signal(|| false);
     let route = use_route::<Route>();
     let demo = use_resource(|| async { demo_project().await.ok().flatten() });
+    use_build_check();
+    use_reload_when_stale();
 
     // Redirect to login when not authenticated. Waits until the demo slug is known, or every
     // visitor would be bounced before the shell could tell them apart.
@@ -71,6 +74,7 @@ pub fn DashboardShell() -> Element {
 
                     // Main content
                     div { class: "drawer-content flex flex-col",
+                        UpdateBanner {}
                         // Top bar (mobile drawer toggle)
                         div { class: "navbar glass-panel border-b border-base-300 lg:hidden",
                             div { class: "flex-none",
@@ -181,6 +185,7 @@ fn VisitorShell() -> Element {
                 class: "drawer-toggle",
             }
             div { class: "drawer-content flex flex-col",
+                UpdateBanner {}
                 div { class: "flex items-center gap-3 px-4 py-2 text-sm border-b border-warning/40 bg-warning/10",
                     label {
                         r#for: "dashboard-drawer",

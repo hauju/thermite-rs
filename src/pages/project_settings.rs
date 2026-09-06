@@ -13,6 +13,7 @@ use crate::errors_data::{
 };
 use crate::models::errors::ProjectSummary;
 use crate::routes::Route;
+use crate::version::load_error;
 
 #[component]
 pub fn ProjectSettings(slug: String) -> Element {
@@ -57,7 +58,7 @@ pub fn ProjectSettings(slug: String) -> Element {
                     }
                 },
                 Some(Err(e)) => rsx! {
-                    div { class: "alert alert-error mb-4", "Could not load the project: {e}" }
+                    div { class: "alert alert-error mb-4", {load_error("Could not load the project", e)} }
                     Link { to: Route::Projects {}, class: "btn btn-sm btn-outline", "Back to projects" }
                 },
                 None => rsx! {

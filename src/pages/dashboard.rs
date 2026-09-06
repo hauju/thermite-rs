@@ -8,6 +8,7 @@ use crate::components::toast::{ToastLevel, show_toast};
 use crate::errors_data::{dead_letters, project_overview, recent_issues, retry_alert};
 use crate::models::errors::{DeadLetterRow, FeedRow, ProjectOverviewRow, level_class, thousands};
 use crate::routes::Route;
+use crate::version::load_error;
 
 #[component]
 pub fn Dashboard() -> Element {
@@ -92,7 +93,7 @@ pub fn Dashboard() -> Element {
                                 }
                             },
                             Some(Err(e)) => rsx! {
-                                div { class: "alert alert-error", "Could not load the feed: {e}" }
+                                div { class: "alert alert-error", {load_error("Could not load the feed", e)} }
                             },
                             None => rsx! {
                                 div { class: "flex flex-col gap-2",
@@ -109,7 +110,7 @@ pub fn Dashboard() -> Element {
                     ProjectList { rows: rows.clone() }
                 },
                 Some(Err(e)) => rsx! {
-                    div { class: "alert alert-error", "Could not load the overview: {e}" }
+                    div { class: "alert alert-error", {load_error("Could not load the overview", e)} }
                 },
                 None => rsx! {
                     div { class: "flex flex-col gap-3",

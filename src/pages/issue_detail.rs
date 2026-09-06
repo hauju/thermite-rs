@@ -13,6 +13,7 @@ use crate::models::errors::{
 };
 use crate::models::repo_links::{SourceLinks, commit_url, compare_url};
 use crate::routes::{IssueFilters, Route};
+use crate::version::load_error;
 
 #[component]
 pub fn IssueDetail(id: i64) -> Element {
@@ -73,7 +74,7 @@ pub fn IssueDetail(id: i64) -> Element {
             }
         },
         Some(Err(e)) => rsx! {
-            div { class: "max-w-5xl alert alert-error", "Could not load this issue: {e}" }
+            div { class: "max-w-5xl alert alert-error", {load_error("Could not load this issue", e)} }
         },
         Some(Ok(detail)) => {
             let badge = level_class(&detail.level);
@@ -271,7 +272,7 @@ pub fn IssueDetail(id: i64) -> Element {
                                     EventView { event: event.clone(), repo_url: detail.repo_url.clone() }
                                 },
                                 (_, Some(Err(e))) => rsx! {
-                                    div { class: "alert alert-error", "Could not load that event: {e}" }
+                                    div { class: "alert alert-error", {load_error("Could not load that event", e)} }
                                 },
                                 _ => rsx! {
                                     div { class: "flex flex-col gap-4",

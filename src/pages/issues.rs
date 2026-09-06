@@ -20,6 +20,7 @@ use crate::models::errors::{
     IssueQuery, IssueRow, MonitorRow, ProjectSummary, ReleaseHealthRow, level_class,
 };
 use crate::routes::{IssueFilters, Route};
+use crate::version::load_error;
 
 /// Issues per fetch. The API caps a page at 100; this stays well under so a page is quick.
 const PAGE: i64 = 50;
@@ -424,7 +425,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                         }
                     },
                     Some(Err(e)) => rsx! {
-                        div { class: "alert alert-error mb-6", "Could not load stats: {e}" }
+                        div { class: "alert alert-error mb-6", {load_error("Could not load stats", e)} }
                     },
                     None => rsx! {
                         div { class: "skeleton h-48 mb-6" }
@@ -631,7 +632,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                                                         more_rows.write().extend(next);
                                                     }
                                                     Err(e) => show_toast(
-                                                        format!("Could not load more: {e}"),
+                                                        load_error("Could not load more", e),
                                                         ToastLevel::Error,
                                                     ),
                                                 }
@@ -658,7 +659,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                         }
                     },
                     Some(Err(e)) => rsx! {
-                        div { class: "alert alert-error", "Could not load issues: {e}" }
+                        div { class: "alert alert-error", {load_error("Could not load issues", e)} }
                     },
                     None => rsx! {
                         div { class: "flex flex-col gap-2",

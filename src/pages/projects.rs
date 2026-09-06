@@ -9,13 +9,31 @@ use crate::components::toast::{ToastLevel, show_toast};
 use crate::errors_data::{create_project, list_projects};
 use crate::models::errors::{ProjectSummary, thousands};
 use crate::routes::Route;
+use crate::version::load_error;
+
+/// The slug the server would accept for a display name: lowercase, with every run of characters
+/// outside `[a-z0-9_]` collapsed to one `-`.
+fn slugify(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    for c in name.chars() {
+        if c.is_ascii_alphanumeric() || c == '_' {
+            out.push(c.to_ascii_lowercase());
+        } else if !out.ends_with('-') {
+            out.push('-');
+        }
+    }
+    out.trim_matches('-').to_string()
+}
 
 #[component]
 pub fn Projects() -> Element {
-    let mut projects = use_resource(move || async move { list_projects().await });
-    let mut slug = use_signal(String::new);
+    let projects = use_resource(move || async move { list_projects().await });
     let mut name = use_signal(String::new);
+    let mut slug = use_signal(String::new);
+    // The slug follows the name until it is typed into, then it is the user's.
+    let mut slug_edited = use_signal(|| false);
     let mut creating = use_signal(|| false);
+    let nav = use_navigator();
 
     let submit = move || async move {
         if slug().trim().is_empty() {
@@ -108,7 +126,7 @@ pub fn Projects() -> Element {
                     }
                 },
                 Some(Err(e)) => rsx! {
-                    div { class: "alert alert-error", "Could not load projects: {e}" }
+                    div { class: "alert alert-error", {load_error("Could not load projects", e)} }
                 },
                 None => rsx! {
                     div { class: "flex flex-col gap-3",

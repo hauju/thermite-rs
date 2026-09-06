@@ -11,6 +11,7 @@ use crate::components::toast::{ToastLevel, show_toast};
 use crate::errors_data::{list_projects, raise_demo_error};
 use crate::models::demo::DEMO_KINDS;
 use crate::routes::Route;
+use crate::version::load_error;
 
 #[component]
 pub fn Playground() -> Element {
@@ -178,7 +179,7 @@ pub fn Playground() -> Element {
                     }
                 },
                 Some(Err(e)) => rsx! {
-                    div { class: "alert alert-error", "Could not load projects: {e}" }
+                    div { class: "alert alert-error", {load_error("Could not load projects", e)} }
                 },
                 None => rsx! {
                     div { class: "grid gap-3 sm:grid-cols-2",
