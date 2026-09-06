@@ -4,13 +4,14 @@ use dioxus::prelude::*;
 
 use crate::components::logo::ThermiteMark;
 use crate::components::sparkline::Sparkline;
-use crate::errors_data::project_overview;
-use crate::models::errors::{ProjectOverviewRow, thousands};
+use crate::errors_data::{project_overview, recent_issues};
+use crate::models::errors::{FeedRow, ProjectOverviewRow, level_class, thousands};
 use crate::routes::Route;
 
 #[component]
 pub fn Dashboard() -> Element {
     let overview = use_resource(move || async move { project_overview().await });
+    let feed = use_resource(move || async move { recent_issues().await });
 
     rsx! {
         div { class: "max-w-4xl",
@@ -41,6 +42,44 @@ pub fn Dashboard() -> Element {
                 },
                 Some(Ok(rows)) => rsx! {
                     Totals { rows: rows.clone() }
+                    // What happened, before what exists: the feed is the reason to open this
+                    // page; the per-project cards below are the map.
+                    section { class: "mb-6",
+                        h2 { class: "text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-2",
+                            "Needs a look"
+                        }
+                        match &*feed.read_unchecked() {
+                            Some(Ok(items)) if items.is_empty() => rsx! {
+                                div { class: "card bg-base-200 border border-base-300",
+                                    div { class: "card-body py-6 items-center text-center",
+                                        p { class: "text-base-content/60",
+                                            "Nothing new in the last 24 hours."
+                                        }
+                                    }
+                                }
+                            },
+                            Some(Ok(items)) => rsx! {
+                                div { class: "flex flex-col gap-2",
+                                    for item in items.iter().cloned() {
+                                        FeedCard { key: "{item.issue_id}", item }
+                                    }
+                                }
+                            },
+                            Some(Err(e)) => rsx! {
+                                div { class: "alert alert-error", "Could not load the feed: {e}" }
+                            },
+                            None => rsx! {
+                                div { class: "flex flex-col gap-2",
+                                    for _ in 0..3 {
+                                        div { class: "skeleton h-16" }
+                                    }
+                                }
+                            },
+                        }
+                    }
+                    h2 { class: "text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-2",
+                        "Projects"
+                    }
                     ProjectList { rows: rows.clone() }
                 },
                 Some(Err(e)) => rsx! {
@@ -74,6 +113,50 @@ fn Totals(rows: Vec<ProjectOverviewRow>) -> Element {
                 title: "Need attention",
                 value: attention.to_string(),
                 accent: attention > 0,
+            }
+        }
+    }
+}
+
+/// One feed row: which project, what kind of news, and the issue — linking straight to it.
+#[component]
+fn FeedCard(item: FeedRow) -> Element {
+    let badge = level_class(&item.level);
+
+    rsx! {
+        Link {
+            to: Route::IssueDetail { id: item.issue_id },
+            class: "card bg-base-200 border border-base-300 hover:border-primary/50 transition-colors",
+            div { class: "card-body py-3 flex-row items-center gap-4",
+                div { class: "flex-1 min-w-0",
+                    div { class: "flex items-center gap-2 flex-wrap",
+                        span { class: "badge badge-sm badge-neutral", "{item.project_name}" }
+                        span { class: "badge badge-sm {badge}", "{item.level}" }
+                        if item.kind == "regression" {
+                            span { class: "badge badge-sm badge-error badge-outline", "regression" }
+                        } else {
+                            span { class: "badge badge-sm badge-warning badge-outline", "new" }
+                        }
+                    }
+                    div { class: "font-medium truncate mt-1", "{item.title}" }
+                    if let Some(culprit) = &item.culprit {
+                        div { class: "text-xs text-base-content/50 truncate font-mono", "{culprit}" }
+                    }
+                }
+                div { class: "text-right w-20 hidden lg:block",
+                    div { class: "font-semibold tabular-nums whitespace-nowrap", "{item.last_seen_ago}" }
+                    div { class: "text-xs text-base-content/50", "last seen" }
+                }
+                div { class: "text-right w-16",
+                    div { class: "font-semibold tabular-nums", "{item.times_seen}" }
+                    div { class: "text-xs text-base-content/50", "events" }
+                }
+                if item.users_affected > 0 {
+                    div { class: "text-right w-14 hidden md:block",
+                        div { class: "font-semibold tabular-nums", "{item.users_affected}" }
+                        div { class: "text-xs text-base-content/50", "users" }
+                    }
+                }
             }
         }
     }

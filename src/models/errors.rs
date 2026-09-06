@@ -37,6 +37,22 @@ pub struct ProjectKey {
 }
 
 /// One project on the dashboard overview, with everything that flags it as needing attention.
+/// One row of the dashboard feed: an issue that appeared or came back in the last 24 hours.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FeedRow {
+    pub issue_id: i64,
+    pub project_slug: String,
+    pub project_name: String,
+    pub title: String,
+    pub culprit: Option<String>,
+    pub level: String,
+    pub times_seen: i64,
+    pub users_affected: i64,
+    pub last_seen_ago: String,
+    /// `new` or `regression`.
+    pub kind: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProjectOverviewRow {
     pub slug: String,
@@ -484,6 +500,23 @@ mod convert {
                 crashed: health.crashed,
                 crash_free_rate: health.crash_free_rate,
                 series: health.series,
+            }
+        }
+    }
+
+    impl From<thermite_core::api::overview::FeedItem> for FeedRow {
+        fn from(item: thermite_core::api::overview::FeedItem) -> Self {
+            Self {
+                issue_id: item.issue_id,
+                project_slug: item.project_slug,
+                project_name: item.project_name,
+                title: item.title,
+                culprit: item.culprit,
+                level: item.level,
+                times_seen: item.times_seen,
+                users_affected: item.users_affected,
+                last_seen_ago: ago(item.last_seen, chrono::Utc::now()),
+                kind: item.kind,
             }
         }
     }

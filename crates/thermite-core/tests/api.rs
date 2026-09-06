@@ -393,6 +393,59 @@ async fn lists_the_events_of_an_issue(db: PgPool) {
     );
 }
 
+/// The dashboard's feed: what appeared or came back, not everything that is still broken.
+#[sqlx::test(migrations = "../../migrations")]
+async fn the_feed_lists_what_appeared_or_came_back_recently(db: PgPool) {
+    let project_id = create_project(&db, "demo", PUBLIC_KEY).await;
+
+    // Still unresolved, but three days old: not news.
+    ingest(
+        &db,
+        project_id,
+        error_event(&"1".repeat(32), "OldError", "stale"),
+    )
+    .await;
+    sqlx::query("update issues set first_seen = now() - interval '3 days', last_seen = now() - interval '3 days'")
+        .execute(&db)
+        .await
+        .unwrap();
+
+    // Resolved a while ago, then seen again: a regression.
+    ingest(
+        &db,
+        project_id,
+        error_event(&"2".repeat(32), "ValueError", "bad input"),
+    )
+    .await;
+    sqlx::query("update issues set status = 'resolved', first_seen = now() - interval '3 days' where exception_type = 'ValueError'")
+        .execute(&db)
+        .await
+        .unwrap();
+    ingest(
+        &db,
+        project_id,
+        error_event(&"3".repeat(32), "ValueError", "bad input"),
+    )
+    .await;
+
+    // Brand new.
+    ingest(
+        &db,
+        project_id,
+        error_event(&"4".repeat(32), "IOError", "boom"),
+    )
+    .await;
+
+    let body = body_json(send(state(db.clone()), get("/api/v1/overview/recent")).await).await;
+    let items = body.as_array().unwrap();
+    assert_eq!(items.len(), 2, "{body}");
+    assert_eq!(items[0]["kind"], json!("new"));
+    assert_eq!(items[0]["title"], json!("IOError: boom"));
+    assert_eq!(items[0]["project_slug"], json!("demo"));
+    assert_eq!(items[1]["kind"], json!("regression"));
+    assert_eq!(items[1]["title"], json!("ValueError: bad input"));
+}
+
 /// The dashboard steps through an issue's events with this; it must agree with the full listing
 /// on order, and cost nothing like it.
 #[sqlx::test(migrations = "../../migrations")]

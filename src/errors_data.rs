@@ -6,8 +6,8 @@
 use dioxus::prelude::*;
 
 use crate::models::errors::{
-    EventDetail, EventRef, IssueDetail, IssueQuery, IssueRow, MonitorRow, ProjectOverviewRow,
-    ProjectStats, ProjectSummary, ReleaseHealthRow,
+    EventDetail, EventRef, FeedRow, IssueDetail, IssueQuery, IssueRow, MonitorRow,
+    ProjectOverviewRow, ProjectStats, ProjectSummary, ReleaseHealthRow,
 };
 
 #[cfg(feature = "server")]
@@ -44,6 +44,16 @@ pub async fn project_overview() -> Result<Vec<ProjectOverviewRow>, ServerFnError
         .await
         .map_err(app_error)?;
     Ok(overview.into_iter().map(ProjectOverviewRow::from).collect())
+}
+
+/// What appeared or came back in the last 24 hours, across every project.
+#[post("/api/errors/recent", session: auth::UserSession)]
+pub async fn recent_issues() -> Result<Vec<FeedRow>, ServerFnError> {
+    let state = thermite(session)?;
+    let items = thermite_core::api::overview::recent(&state.db, 20)
+        .await
+        .map_err(app_error)?;
+    Ok(items.into_iter().map(FeedRow::from).collect())
 }
 
 /// One project's summary, for the settings page. Reuses the list query — a self-hosted

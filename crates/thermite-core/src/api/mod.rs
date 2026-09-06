@@ -28,6 +28,7 @@ use crate::state::ThermiteState;
 pub fn routes() -> Router<ThermiteState> {
     Router::new()
         .route("/api/v1/overview", get(overview::list))
+        .route("/api/v1/overview/recent", get(overview::recent_list))
         .route("/api/v1/projects", get(projects::list).post(admin::create))
         .route(
             "/api/v1/projects/{slug}",

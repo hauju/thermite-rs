@@ -11,11 +11,70 @@ use chrono::{DateTime, Duration, Utc};
 use serde::Serialize;
 use sqlx::PgPool;
 
+use crate::api::page_size;
 use crate::error::AppResult;
 use crate::state::ThermiteState;
 
 /// Hourly buckets on the sparkline, matching the "events 24h" number beside it.
 const SERIES_BUCKETS: i64 = 24;
+
+/// How far back the feed looks, in hours. The same window as "new" everywhere else.
+const FEED_HOURS: i32 = 24;
+
+/// An issue that appeared or came back recently, from any project — one row of the dashboard's
+/// feed.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct FeedItem {
+    pub issue_id: i64,
+    pub project_slug: String,
+    pub project_name: String,
+    pub title: String,
+    pub culprit: Option<String>,
+    pub level: String,
+    pub times_seen: i64,
+    pub users_affected: i64,
+    pub first_seen: DateTime<Utc>,
+    pub last_seen: DateTime<Utc>,
+    /// `regression` when the issue reopened inside the window, otherwise `new`.
+    pub kind: String,
+}
+
+pub async fn recent_list(State(state): State<ThermiteState>) -> AppResult<Json<Vec<FeedItem>>> {
+    Ok(Json(recent(&state.db, 20).await?))
+}
+
+/// Unresolved issues first seen or reopened in the last 24 hours, across every project, most
+/// recent activity first. An old issue that is merely still failing is not news; one that came
+/// back after a fix is. Reads `issues` and `notifications` only, like the rest of this module.
+pub async fn recent(db: &PgPool, limit: i64) -> AppResult<Vec<FeedItem>> {
+    let items: Vec<FeedItem> = sqlx::query_as(
+        "with reopened as (
+             select distinct issue_id
+               from notifications
+              where kind = 'regression'
+                and created_at >= now() - make_interval(hours => $2)
+         )
+         select i.id as issue_id,
+                p.slug as project_slug,
+                p.name as project_name,
+                i.title, i.culprit, i.level, i.times_seen, i.users_affected,
+                i.first_seen, i.last_seen,
+                case when r.issue_id is not null then 'regression' else 'new' end as kind
+           from issues i
+           join projects p on p.id = i.project_id
+           left join reopened r on r.issue_id = i.id
+          where i.status = 'unresolved'
+            and (i.first_seen >= now() - make_interval(hours => $2) or r.issue_id is not null)
+          order by i.last_seen desc, i.id desc
+          limit $1",
+    )
+    .bind(page_size(Some(limit)))
+    .bind(FEED_HOURS)
+    .fetch_all(db)
+    .await?;
+
+    Ok(items)
+}
 
 #[derive(Debug, Serialize)]
 pub struct ProjectOverview {
