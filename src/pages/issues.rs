@@ -181,35 +181,47 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
         }
     };
 
-    // While nothing has reported yet, ask again every few seconds, so the tab a developer leaves
-    // open while wiring up an SDK turns into the board on its own when the first event lands.
-    // Everything above was fetched against an empty project, so it all refetches at that point.
-    // Ends once there is something to show, or once the project itself fails to load.
+    // The board keeps itself current. While nothing has reported yet it asks every few seconds,
+    // so the tab a developer leaves open while wiring up an SDK turns into the board on its own
+    // when the first event lands; after that it refetches every half minute, so an error storm
+    // shows up without a reload. A restarted resource keeps its last value until the new one
+    // arrives, so a refresh never flashes a skeleton. Ends once the project fails to load.
     use_future({
         let slug = slug.clone();
         move || {
             let slug = slug.clone();
             async move {
                 loop {
-                    sleep(5_000).await;
-                    match &*project.peek() {
-                        Some(Ok(p)) if p.total_issues == 0 => {}
-                        Some(_) => break,
-                        None => continue,
-                    }
-                    if let Ok(p) = get_project(slug.clone()).await
-                        && p.total_issues > 0
-                    {
-                        project.restart();
-                        envs.restart();
-                        comps.restart();
-                        stats.restart();
-                        monitors.restart();
-                        releases.restart();
-                        issues.restart();
-                        reset_list();
+                    let waiting = matches!(&*project.peek(), Some(Ok(p)) if p.total_issues == 0);
+                    sleep(if waiting { 5_000 } else { 30_000 }).await;
+
+                    let (loaded, failed, waiting) = match &*project.peek() {
+                        Some(Ok(p)) => (true, false, p.total_issues == 0),
+                        Some(Err(_)) => (true, true, false),
+                        None => (false, false, false),
+                    };
+                    if failed {
                         break;
                     }
+                    if !loaded {
+                        continue;
+                    }
+                    if waiting {
+                        match get_project(slug.clone()).await {
+                            Ok(p) if p.total_issues > 0 => {
+                                // Everything was fetched against an empty project.
+                                project.restart();
+                                envs.restart();
+                                comps.restart();
+                                reset_list();
+                            }
+                            _ => continue,
+                        }
+                    }
+                    stats.restart();
+                    monitors.restart();
+                    releases.restart();
+                    issues.restart();
                 }
             }
         }
@@ -417,7 +429,9 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                             }
                         }
                         div { class: "flex flex-col gap-2",
-                            for row in rows.iter().chain(more_rows.read().iter()).cloned() {
+                            // A refresh of the first page can pull a row up out of the pages
+                            // loaded after it; show it once.
+                            for row in rows.iter().chain(more_rows.read().iter().filter(|r| rows.iter().all(|f| f.id != r.id))).cloned() {
                                 IssueCard { row, selected }
                             }
                         }
