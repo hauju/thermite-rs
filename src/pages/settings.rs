@@ -23,24 +23,16 @@ pub fn Settings() -> Element {
                 div { class: "card-body",
                     h2 { class: "card-title text-lg mb-4", "Profile" }
 
-                    div { class: "space-y-4",
+                    // Read-only values render as text: a disabled DaisyUI input loses its border
+                    // and matches the card fill, so it looked like a label over an invisible box.
+                    dl { class: "flex flex-col gap-3 text-sm",
                         div {
-                            label { class: "label", span { class: "label-text", "Username" } }
-                            input {
-                                r#type: "text",
-                                class: "input input-bordered w-full",
-                                value: "{username}",
-                                disabled: true,
-                            }
+                            dt { class: "text-xs uppercase tracking-wide text-base-content/50", "Username" }
+                            dd { class: "font-medium mt-0.5", "{username}" }
                         }
                         div {
-                            label { class: "label", span { class: "label-text", "Email" } }
-                            input {
-                                r#type: "email",
-                                class: "input input-bordered w-full",
-                                value: "{email}",
-                                disabled: true,
-                            }
+                            dt { class: "text-xs uppercase tracking-wide text-base-content/50", "Email" }
+                            dd { class: "font-medium mt-0.5", "{email}" }
                         }
                     }
                 }
