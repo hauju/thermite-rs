@@ -1,0 +1,8 @@
+[advisories]
+ignore = [
+    # Marvin attack in `rsa` (timing side channel, no fixed release). The crate reaches the lockfile
+    # through `sqlx-mysql`, which sqlx's macro crate lists as an optional dependency; thermite
+    # enables only the `postgres` driver, so `rsa` is never compiled into any binary. Drop this
+    # entry once sqlx-mysql moves off it.
+    "RUSTSEC-2023-0071",
+]
