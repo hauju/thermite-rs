@@ -23,6 +23,25 @@ use crate::routes::{IssueFilters, Route};
 /// Issues per fetch. The API caps a page at 100; this stays well under so a page is quick.
 const PAGE: i64 = 50;
 
+/// The keyboard listener for the list, installed once per visit and taken down again by
+/// `KEY_LISTENER_REMOVE` when the page goes, so a stale handler never fires into a closed channel.
+/// Keys typed into a field or aimed at a focused control are left alone.
+const KEY_LISTENER: &str = r#"
+    window.__thermiteIssueKeys = (e) => {
+        const t = e.target;
+        if (t && t.closest && t.closest('input, textarea, select, button, a, [contenteditable]')) return;
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        if (!['j', 'k', 'Enter', 'x', 'r', 'i', 'Escape'].includes(e.key)) return;
+        e.preventDefault();
+        dioxus.send(e.key);
+    };
+    document.addEventListener('keydown', window.__thermiteIssueKeys);
+"#;
+const KEY_LISTENER_REMOVE: &str = r#"
+    document.removeEventListener('keydown', window.__thermiteIssueKeys);
+    delete window.__thermiteIssueKeys;
+"#;
+
 /// `filters` is the URL's view of the state; the signals below are the live one, seeded from it
 /// on first render and mirrored back on every change.
 #[component]
@@ -180,6 +199,88 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
             }
         }
     };
+
+    // Keyboard triage: j/k walk the list, Enter opens, x ticks, r resolves, i ignores, Escape
+    // clears. One document-level listener rather than a focusable list, so it works without
+    // clicking into the page first.
+    let mut cursor = use_signal(|| None::<usize>);
+    let visible_ids = move || -> Vec<i64> {
+        let first = issues.peek();
+        let Some(Ok(rows)) = &*first else {
+            return Vec::new();
+        };
+        let more = more_rows.peek();
+        rows.iter()
+            .map(|r| r.id)
+            .chain(
+                more.iter()
+                    .filter(|r| rows.iter().all(|f| f.id != r.id))
+                    .map(|r| r.id),
+            )
+            .collect()
+    };
+    use_future(move || async move {
+        if !cfg!(feature = "web") {
+            return;
+        }
+        let mut keys = document::eval(KEY_LISTENER);
+        while let Ok(key) = keys.recv::<String>().await {
+            let ids = visible_ids();
+            let at = cursor();
+            let current = at.and_then(|i| ids.get(i).copied());
+            match key.as_str() {
+                "j" | "k" if !ids.is_empty() => {
+                    let next = match (key.as_str(), at) {
+                        ("j", Some(i)) => (i + 1).min(ids.len() - 1),
+                        ("k", Some(i)) => i.saturating_sub(1),
+                        _ => 0,
+                    };
+                    cursor.set(Some(next));
+                    let _ = document::eval(&format!(
+                        "document.querySelector('[data-issue-id=\"{}\"]')?.scrollIntoView({{ block: 'nearest' }})",
+                        ids[next]
+                    ));
+                }
+                "Enter" => {
+                    if let Some(id) = current {
+                        nav.push(Route::IssueDetail { id });
+                    }
+                }
+                "x" => {
+                    if let Some(id) = current {
+                        let mut set = selected.write();
+                        if !set.remove(&id) {
+                            set.insert(id);
+                        }
+                    }
+                }
+                "r" | "i" => {
+                    if let Some(id) = current {
+                        let status = if key == "r" { "resolved" } else { "ignored" };
+                        match set_issues_status(vec![id], status.to_string()).await {
+                            Ok(()) => {
+                                show_toast(format!("Issue {status}"), ToastLevel::Success);
+                                issues.restart();
+                            }
+                            Err(e) => {
+                                show_toast(format!("Could not update: {e}"), ToastLevel::Error)
+                            }
+                        }
+                    }
+                }
+                "Escape" => {
+                    cursor.set(None);
+                    selected.write().clear();
+                }
+                _ => {}
+            }
+        }
+    });
+    use_drop(move || {
+        if cfg!(feature = "web") {
+            let _ = document::eval(KEY_LISTENER_REMOVE);
+        }
+    });
 
     // The board keeps itself current. While nothing has reported yet it asks every few seconds,
     // so the tab a developer leaves open while wiring up an SDK turns into the board on its own
@@ -431,8 +532,8 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                         div { class: "flex flex-col gap-2",
                             // A refresh of the first page can pull a row up out of the pages
                             // loaded after it; show it once.
-                            for row in rows.iter().chain(more_rows.read().iter().filter(|r| rows.iter().all(|f| f.id != r.id))).cloned() {
-                                IssueCard { row, selected }
+                            for (i , row) in rows.iter().chain(more_rows.read().iter().filter(|r| rows.iter().all(|f| f.id != r.id))).cloned().enumerate() {
+                                IssueCard { row, selected, highlighted: cursor() == Some(i) }
                             }
                         }
                         // A full first page may have more behind it; a short one cannot.
@@ -470,6 +571,14 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                                     "Load more"
                                 }
                             }
+                        }
+                        div { class: "hidden md:flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-xs text-base-content/40",
+                            span { kbd { class: "kbd kbd-xs", "j" } " " kbd { class: "kbd kbd-xs", "k" } " move" }
+                            span { kbd { class: "kbd kbd-xs", "↵" } " open" }
+                            span { kbd { class: "kbd kbd-xs", "x" } " select" }
+                            span { kbd { class: "kbd kbd-xs", "r" } " resolve" }
+                            span { kbd { class: "kbd kbd-xs", "i" } " ignore" }
+                            span { kbd { class: "kbd kbd-xs", "esc" } " clear" }
                         }
                     },
                     Some(Err(e)) => rsx! {
@@ -733,14 +842,25 @@ fn monitor_badge(status: Option<&str>) -> &'static str {
 /// One row. The checkbox sits beside the link rather than inside it: a click inside an anchor
 /// navigates whatever else it does, and stopping that would also stop the box from toggling.
 #[component]
-fn IssueCard(row: IssueRow, selected: Signal<BTreeSet<i64>>) -> Element {
+fn IssueCard(row: IssueRow, selected: Signal<BTreeSet<i64>>, highlighted: bool) -> Element {
     let badge = level_class(&row.level);
     let id = row.id;
     let checked = selected.read().contains(&id);
+    let border = if checked {
+        "border-primary/60"
+    } else {
+        "border-base-300 hover:border-primary/50"
+    };
+    let ring = if highlighted {
+        "ring-2 ring-primary/50"
+    } else {
+        ""
+    };
 
     rsx! {
         div {
-            class: if checked { "card bg-base-200 border border-primary/60 transition-colors" } else { "card bg-base-200 border border-base-300 hover:border-primary/50 transition-colors" },
+            class: "card bg-base-200 border transition-colors {border} {ring}",
+            "data-issue-id": "{id}",
             div { class: "card-body py-3 pl-3 flex-row items-center gap-3",
                 input {
                     r#type: "checkbox",
