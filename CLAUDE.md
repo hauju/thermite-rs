@@ -405,7 +405,9 @@ project first. `get_project` withholds the DSN, component keys and alert routing
 writes keep requiring a session, and the pages hide the controls. The MCP and REST surfaces are
 untouched. The rule is a pure function with tests; keep it that way. While the flag is set,
 `server::demo_feed` raises a playground event into that project every 10 to 30 minutes at the
-release it last saw, so the demo never goes flat and never reads as a new deploy.
+release it last saw, so the demo never goes flat and never reads as a new deploy. The tick also
+recreates the project if it is missing and seeds it if it has no issues: the project is declared
+by configuration, so deleting it is a reset, not an outage.
 
 **Or the whole instance can be the demo.** `THERMITE_DEMO_AUTOLOGIN` mounts `GET /demo`
 (`src/server/demo_login.rs`), which signs anyone in as the shared `demo` user and sends them on
