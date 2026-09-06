@@ -2,6 +2,7 @@ use dioxus::prelude::*;
 use dioxus_free_icons::{Icon, icons::ld_icons::*};
 
 use crate::UserAuthState;
+use crate::components::command_palette::CommandPalette;
 use crate::components::logo::ThermiteMark;
 use crate::components::theme_toggle::ThemeToggle;
 use crate::routes::Route;
@@ -12,6 +13,7 @@ use crate::routes::Route;
 pub fn DashboardShell() -> Element {
     let user_auth = use_context::<Signal<UserAuthState>>();
     let nav = use_navigator();
+    let mut palette = use_signal(|| false);
 
     // Redirect to login when not authenticated
     use_effect(move || {
@@ -75,6 +77,7 @@ pub fn DashboardShell() -> Element {
                         div { class: "flex-1 p-4 lg:p-8 animate-fade-up",
                             Outlet::<Route> {}
                         }
+                        CommandPalette { open: palette }
                     }
 
                     // Sidebar
@@ -96,6 +99,13 @@ pub fn DashboardShell() -> Element {
 
                             // Navigation
                             nav { class: "flex-1 flex flex-col gap-1 p-4",
+                                button {
+                                    class: "nav-link flex items-center text-sm font-medium text-base-content/70 w-full",
+                                    onclick: move |_| palette.set(true),
+                                    Icon { icon: LdSearch, width: 18, height: 18 }
+                                    "Jump to…"
+                                    kbd { class: "kbd kbd-xs ml-auto", "⌘K" }
+                                }
                                 NavItem {
                                     to: Route::Dashboard {},
                                     icon: rsx! { Icon { icon: LdLayoutDashboard, width: 18, height: 18 } },

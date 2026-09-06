@@ -1,3 +1,4 @@
+pub mod command_palette;
 pub mod copy_dsn;
 pub mod dashboard_shell;
 pub mod footer;
