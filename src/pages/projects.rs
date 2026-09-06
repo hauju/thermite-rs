@@ -26,11 +26,11 @@ pub fn Projects() -> Element {
         creating.set(false);
 
         match result {
+            // Straight into the setup screen: a project with no events renders the SDK
+            // instructions in place of an empty board, which is the next thing to do anyway.
             Ok(project) => {
                 show_toast(format!("Created {}", project.slug), ToastLevel::Success);
-                slug.set(String::new());
-                name.set(String::new());
-                projects.restart();
+                nav.push(Route::issues(project.slug));
             }
             Err(e) => show_toast(format!("Could not create project: {e}"), ToastLevel::Error),
         }
@@ -52,20 +52,35 @@ pub fn Projects() -> Element {
                             e.prevent_default();
                             async move { submit().await }
                         },
-                        input {
-                            class: "input input-sm input-bordered flex-1 min-w-40",
-                            placeholder: "slug (letters, digits, - and _)",
-                            value: "{slug}",
-                            oninput: move |e| slug.set(e.value()),
+                        label { class: "flex flex-col flex-1 min-w-40",
+                            span { class: "text-xs mb-1", "Name" }
+                            input {
+                                class: "input input-sm w-full",
+                                placeholder: "Checkout API",
+                                value: "{name}",
+                                oninput: move |e| {
+                                    let v = e.value();
+                                    if !slug_edited() {
+                                        slug.set(slugify(&v));
+                                    }
+                                    name.set(v);
+                                },
+                            }
                         }
-                        input {
-                            class: "input input-sm input-bordered flex-1 min-w-40",
-                            placeholder: "display name (optional)",
-                            value: "{name}",
-                            oninput: move |e| name.set(e.value()),
+                        label { class: "flex flex-col flex-1 min-w-40",
+                            span { class: "text-xs mb-1", "Slug" }
+                            input {
+                                class: "input input-sm w-full font-mono",
+                                placeholder: "letters, digits, - and _",
+                                value: "{slug}",
+                                oninput: move |e| {
+                                    slug_edited.set(true);
+                                    slug.set(e.value());
+                                },
+                            }
                         }
                         button {
-                            class: "btn btn-sm btn-primary",
+                            class: "btn btn-sm btn-primary self-end",
                             r#type: "submit",
                             disabled: creating() || slug().trim().is_empty(),
                             if creating() {
@@ -175,5 +190,18 @@ fn ProjectCard(project: ProjectSummary) -> Element {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::slugify;
+
+    #[test]
+    fn slugify_collapses_and_trims() {
+        assert_eq!(slugify("Checkout API"), "checkout-api");
+        assert_eq!(slugify("  my_worker (v2)!  "), "my_worker-v2");
+        assert_eq!(slugify("---"), "");
+        assert_eq!(slugify("Ünïcode"), "n-code");
     }
 }
