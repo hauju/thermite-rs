@@ -498,10 +498,14 @@ pub async fn set_issue_status(
 /// per issue; each update is still its own statement, so an id that fails does not roll back the
 /// others.
 #[post("/api/errors/issues/status", session: auth::UserSession)]
-pub async fn set_issues_status(ids: Vec<i64>, status: String) -> Result<(), ServerFnError> {
+pub async fn set_issues_status(
+    ids: Vec<i64>,
+    status: String,
+    in_next_release: bool,
+) -> Result<(), ServerFnError> {
     let state = thermite(session)?;
     for id in ids {
-        thermite_core::api::issues::update_status(&state.db, id, &status, false)
+        thermite_core::api::issues::update_status(&state.db, id, &status, in_next_release)
             .await
             .map_err(app_error)?;
     }

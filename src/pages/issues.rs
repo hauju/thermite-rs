@@ -187,16 +187,21 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
 
     // One status for everything ticked, then the list refetches so rows that no longer match
     // the filter drop out.
-    let bulk = move |status: &'static str| {
+    let bulk = move |status: &'static str, in_next_release: bool| {
         move |_| async move {
             let ids: Vec<i64> = selected.read().iter().copied().collect();
             let count = ids.len();
-            match set_issues_status(ids, status.to_string()).await {
+            match set_issues_status(ids, status.to_string(), in_next_release).await {
                 Ok(()) => {
                     show_toast(
                         format!(
-                            "{count} issue{} {status}",
-                            if count == 1 { "" } else { "s" }
+                            "{count} issue{} {status}{}",
+                            if count == 1 { "" } else { "s" },
+                            if in_next_release {
+                                " until the next release"
+                            } else {
+                                ""
+                            },
                         ),
                         ToastLevel::Success,
                     );
@@ -266,7 +271,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                 "r" | "i" => {
                     if let Some(id) = current {
                         let status = if key == "r" { "resolved" } else { "ignored" };
-                        match set_issues_status(vec![id], status.to_string()).await {
+                        match set_issues_status(vec![id], status.to_string(), false).await {
                             Ok(()) => {
                                 show_toast(format!("Issue {status}"), ToastLevel::Success);
                                 issues.restart();
@@ -548,9 +553,12 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                                     "{selected.read().len()} selected"
                                 }
                                 span { class: "ml-auto flex gap-2",
-                                    button { class: "btn btn-sm btn-primary", onclick: bulk("resolved"), "Resolve" }
-                                    button { class: "btn btn-sm btn-outline", onclick: bulk("ignored"), "Ignore" }
-                                    button { class: "btn btn-sm btn-outline", onclick: bulk("unresolved"), "Reopen" }
+                                    button { class: "btn btn-sm btn-primary", onclick: bulk("resolved", false), "Resolve" }
+                                    // The release-aware form: stays resolved while the broken
+                                    // deploy is still out, reopens only on a newer release.
+                                    button { class: "btn btn-sm btn-outline", onclick: bulk("resolved", true), "Resolve until next release" }
+                                    button { class: "btn btn-sm btn-outline", onclick: bulk("ignored", false), "Ignore" }
+                                    button { class: "btn btn-sm btn-outline", onclick: bulk("unresolved", false), "Reopen" }
                                     button {
                                         class: "btn btn-sm btn-ghost",
                                         onclick: move |_| selected.write().clear(),
