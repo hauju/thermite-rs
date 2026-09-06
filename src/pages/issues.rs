@@ -9,9 +9,11 @@ use dioxus_free_icons::{
 use crate::components::copy_dsn::CopyDsn;
 use crate::components::sparkline::{RateChart, Sparkline};
 use crate::components::toast::{ToastLevel, show_toast, sleep};
+use std::collections::BTreeSet;
+
 use crate::errors_data::{
     components, environments, get_project, list_issues, list_monitors, project_stats,
-    release_health,
+    release_health, set_issues_status,
 };
 use crate::models::errors::{
     IssueQuery, IssueRow, MonitorRow, ProjectSummary, ReleaseHealthRow, level_class,
@@ -147,9 +149,36 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
     let mut more_rows = use_signal(Vec::<IssueRow>::new);
     let mut exhausted = use_signal(|| false);
     let mut loading_more = use_signal(|| false);
+    // Ids ticked for a bulk action. Cleared with the list: a selection made under one filter
+    // means nothing under another.
+    let mut selected = use_signal(BTreeSet::<i64>::new);
     let mut reset_list = move || {
         more_rows.write().clear();
         exhausted.set(false);
+        selected.write().clear();
+    };
+
+    // One status for everything ticked, then the list refetches so rows that no longer match
+    // the filter drop out.
+    let bulk = move |status: &'static str| {
+        move |_| async move {
+            let ids: Vec<i64> = selected.read().iter().copied().collect();
+            let count = ids.len();
+            match set_issues_status(ids, status.to_string()).await {
+                Ok(()) => {
+                    show_toast(
+                        format!(
+                            "{count} issue{} {status}",
+                            if count == 1 { "" } else { "s" }
+                        ),
+                        ToastLevel::Success,
+                    );
+                    reset_list();
+                    issues.restart();
+                }
+                Err(e) => show_toast(format!("Could not update: {e}"), ToastLevel::Error),
+            }
+        }
     };
 
     // While nothing has reported yet, ask again every few seconds, so the tab a developer leaves
@@ -370,9 +399,26 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                         }
                     },
                     Some(Ok(rows)) => rsx! {
+                        if !selected.read().is_empty() {
+                            div { class: "flex items-center gap-2 flex-wrap rounded-xl border border-primary/40 bg-primary/5 px-4 py-2 mb-2 text-sm",
+                                span { class: "font-medium",
+                                    "{selected.read().len()} selected"
+                                }
+                                span { class: "ml-auto flex gap-2",
+                                    button { class: "btn btn-sm btn-primary", onclick: bulk("resolved"), "Resolve" }
+                                    button { class: "btn btn-sm btn-outline", onclick: bulk("ignored"), "Ignore" }
+                                    button { class: "btn btn-sm btn-outline", onclick: bulk("unresolved"), "Reopen" }
+                                    button {
+                                        class: "btn btn-sm btn-ghost",
+                                        onclick: move |_| selected.write().clear(),
+                                        "Clear"
+                                    }
+                                }
+                            }
+                        }
                         div { class: "flex flex-col gap-2",
                             for row in rows.iter().chain(more_rows.read().iter()).cloned() {
-                                IssueCard { row }
+                                IssueCard { row, selected }
                             }
                         }
                         // A full first page may have more behind it; a short one cannot.
@@ -670,15 +716,33 @@ fn monitor_badge(status: Option<&str>) -> &'static str {
     }
 }
 
+/// One row. The checkbox sits beside the link rather than inside it: a click inside an anchor
+/// navigates whatever else it does, and stopping that would also stop the box from toggling.
 #[component]
-fn IssueCard(row: IssueRow) -> Element {
+fn IssueCard(row: IssueRow, selected: Signal<BTreeSet<i64>>) -> Element {
     let badge = level_class(&row.level);
+    let id = row.id;
+    let checked = selected.read().contains(&id);
 
     rsx! {
-        Link {
-            to: Route::IssueDetail { id: row.id },
-            class: "card bg-base-200 border border-base-300 hover:border-primary/50 transition-colors",
-            div { class: "card-body py-3 flex-row items-center gap-4",
+        div {
+            class: if checked { "card bg-base-200 border border-primary/60 transition-colors" } else { "card bg-base-200 border border-base-300 hover:border-primary/50 transition-colors" },
+            div { class: "card-body py-3 pl-3 flex-row items-center gap-3",
+                input {
+                    r#type: "checkbox",
+                    class: "checkbox checkbox-sm shrink-0",
+                    "aria-label": "Select issue {id}",
+                    checked,
+                    onchange: move |_| {
+                        let mut set = selected.write();
+                        if !set.remove(&id) {
+                            set.insert(id);
+                        }
+                    },
+                }
+                Link {
+                    to: Route::IssueDetail { id },
+                    class: "flex flex-1 items-center gap-4 min-w-0",
                 div { class: "flex-1 min-w-0",
                     div { class: "flex items-center gap-2 flex-wrap",
                         span { class: "badge badge-sm {badge}", "{row.level}" }
@@ -731,6 +795,7 @@ fn IssueCard(row: IssueRow) -> Element {
                         div { class: "font-semibold tabular-nums", "{row.users_affected}" }
                         div { class: "text-xs text-base-content/50", "users" }
                     }
+                }
                 }
             }
         }

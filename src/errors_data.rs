@@ -335,6 +335,20 @@ pub async fn set_issue_status(
     Ok(())
 }
 
+/// One status for several issues — the bulk bar on the issue list. One round trip rather than one
+/// per issue; each update is still its own statement, so an id that fails does not roll back the
+/// others.
+#[post("/api/errors/issues/status", session: auth::UserSession)]
+pub async fn set_issues_status(ids: Vec<i64>, status: String) -> Result<(), ServerFnError> {
+    let state = thermite(session)?;
+    for id in ids {
+        thermite_core::api::issues::update_status(&state.db, id, &status, false)
+            .await
+            .map_err(app_error)?;
+    }
+    Ok(())
+}
+
 /// Most synthetic events one click may send.
 ///
 /// The playground exists to populate a dashboard, not to load-test: a burst large enough to be
