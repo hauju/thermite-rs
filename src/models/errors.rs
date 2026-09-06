@@ -60,6 +60,22 @@ impl ProjectOverviewRow {
     }
 }
 
+/// One page of a project's issue list: the filters and where in the ordering to start.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IssueQuery {
+    pub project: String,
+    /// `None` for every status.
+    pub status: Option<String>,
+    /// Case-insensitive substring of the title.
+    pub query: Option<String>,
+    pub environment: Option<String>,
+    pub component: Option<String>,
+    /// `events` or `last_seen`.
+    pub sort: String,
+    pub limit: i64,
+    pub offset: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IssueRow {
     pub id: i64,

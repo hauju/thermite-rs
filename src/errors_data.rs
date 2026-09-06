@@ -6,8 +6,8 @@
 use dioxus::prelude::*;
 
 use crate::models::errors::{
-    IssueDetail, IssueRow, MonitorRow, ProjectOverviewRow, ProjectStats, ProjectSummary,
-    ReleaseHealthRow,
+    IssueDetail, IssueQuery, IssueRow, MonitorRow, ProjectOverviewRow, ProjectStats,
+    ProjectSummary, ReleaseHealthRow,
 };
 
 #[cfg(feature = "server")]
@@ -196,29 +196,22 @@ pub async fn delete_project_key(slug: String, label: String) -> Result<(), Serve
 }
 
 #[post("/api/errors/issues", session: auth::UserSession)]
-pub async fn list_issues(
-    project: String,
-    status: Option<String>,
-    query: Option<String>,
-    environment: Option<String>,
-    component: Option<String>,
-    sort: String,
-) -> Result<Vec<IssueRow>, ServerFnError> {
+pub async fn list_issues(query: IssueQuery) -> Result<Vec<IssueRow>, ServerFnError> {
     let state = thermite(session)?;
 
     // The component filter is just a tag filter — the label is synthesized into
     // issue_tags at ingest, exactly like environment.
-    let tag = component.map(|c| format!("component:{c}"));
+    let tag = query.component.map(|c| format!("component:{c}"));
     let issues = thermite_core::api::issues::for_project(
         &state.db,
-        &project,
-        status.as_deref(),
-        query.as_deref(),
-        environment.as_deref(),
+        &query.project,
+        query.status.as_deref(),
+        query.query.as_deref(),
+        query.environment.as_deref(),
         tag.as_deref(),
-        Some(&sort),
-        Some(100),
-        None,
+        Some(&query.sort),
+        Some(query.limit),
+        Some(query.offset),
     )
     .await
     .map_err(app_error)?;

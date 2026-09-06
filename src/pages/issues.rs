@@ -13,8 +13,13 @@ use crate::errors_data::{
     components, environments, get_project, list_issues, list_monitors, project_stats,
     release_health,
 };
-use crate::models::errors::{IssueRow, MonitorRow, ProjectSummary, ReleaseHealthRow, level_class};
+use crate::models::errors::{
+    IssueQuery, IssueRow, MonitorRow, ProjectSummary, ReleaseHealthRow, level_class,
+};
 use crate::routes::{IssueFilters, Route};
+
+/// Issues per fetch. The API caps a page at 100; this stays well under so a page is quick.
+const PAGE: i64 = 50;
 
 /// `filters` is the URL's view of the state; the signals below are the live one, seeded from it
 /// on first render and mirrored back on every change.
@@ -104,9 +109,11 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
         }
     });
 
-    let mut issues = use_resource({
+    // One page of the list under the current filters. Reads the filter signals synchronously so
+    // the resource below subscribes to them; the button that loads further pages reuses it.
+    let list_page = {
         let slug = slug.clone();
-        move || {
+        move |offset: i64| {
             let slug = slug.clone();
             let status = status();
             let query = query();
@@ -114,18 +121,36 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
             let component = component();
             let sort = sort();
             async move {
-                list_issues(
-                    slug,
-                    (status != "all").then_some(status),
-                    (!query.trim().is_empty()).then(|| query.trim().to_string()),
-                    (environment != "all").then_some(environment),
-                    (component != "all").then_some(component),
+                list_issues(IssueQuery {
+                    project: slug,
+                    status: (status != "all").then_some(status),
+                    query: (!query.trim().is_empty()).then(|| query.trim().to_string()),
+                    environment: (environment != "all").then_some(environment),
+                    component: (component != "all").then_some(component),
                     sort,
-                )
+                    limit: PAGE,
+                    offset,
+                })
                 .await
             }
         }
+    };
+
+    let mut issues = use_resource({
+        let list_page = list_page.clone();
+        move || list_page(0)
     });
+
+    // Pages after the first, appended by "Load more". Offsets rather than a growing limit,
+    // because the API caps a page at 100. Reset whenever a filter changes: the offsets are only
+    // meaningful against the ordering they were fetched under.
+    let mut more_rows = use_signal(Vec::<IssueRow>::new);
+    let mut exhausted = use_signal(|| false);
+    let mut loading_more = use_signal(|| false);
+    let mut reset_list = move || {
+        more_rows.write().clear();
+        exhausted.set(false);
+    };
 
     // While nothing has reported yet, ask again every few seconds, so the tab a developer leaves
     // open while wiring up an SDK turns into the board on its own when the first event lands.
@@ -153,6 +178,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                         monitors.restart();
                         releases.restart();
                         issues.restart();
+                        reset_list();
                         break;
                     }
                 }
@@ -263,7 +289,10 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                         for option in ["unresolved", "resolved", "ignored", "all"] {
                             button {
                                 class: if status() == option { "join-item btn btn-sm btn-primary" } else { "join-item btn btn-sm" },
-                                onclick: move |_| status.set(option.to_string()),
+                                onclick: move |_| {
+                                    reset_list();
+                                    status.set(option.to_string());
+                                },
                                 "{option}"
                             }
                         }
@@ -272,7 +301,10 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                         for (value , label) in [("events", "most events"), ("last_seen", "most recent")] {
                             button {
                                 class: if sort() == value { "join-item btn btn-sm btn-primary" } else { "join-item btn btn-sm" },
-                                onclick: move |_| sort.set(value.to_string()),
+                                onclick: move |_| {
+                                    reset_list();
+                                    sort.set(value.to_string());
+                                },
                                 "{label}"
                             }
                         }
@@ -282,7 +314,10 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                         if envs.len() > 1 {
                             select {
                                 class: "select select-sm select-bordered w-auto",
-                                onchange: move |e| environment.set(e.value()),
+                                onchange: move |e| {
+                                    reset_list();
+                                    environment.set(e.value());
+                                },
                                 option { value: "all", "all environments" }
                                 for env in envs.iter().cloned() {
                                     option { value: "{env}", selected: environment() == env, "{env}" }
@@ -297,7 +332,10 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                         if !comps.is_empty() {
                             select {
                                 class: "select select-sm select-bordered w-auto",
-                                onchange: move |e| component.set(e.value()),
+                                onchange: move |e| {
+                                    reset_list();
+                                    component.set(e.value());
+                                },
                                 option { value: "all", "all components" }
                                 for comp in comps.iter().cloned() {
                                     option { value: "{comp}", selected: component() == comp, "{comp}" }
@@ -310,7 +348,10 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                         r#type: "search",
                         placeholder: "Search titles…",
                         value: "{query}",
-                        oninput: move |e| query.set(e.value()),
+                        oninput: move |e| {
+                            reset_list();
+                            query.set(e.value());
+                        },
                     }
                 }
 
@@ -330,8 +371,44 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                     },
                     Some(Ok(rows)) => rsx! {
                         div { class: "flex flex-col gap-2",
-                            for row in rows.iter().cloned() {
+                            for row in rows.iter().chain(more_rows.read().iter()).cloned() {
                                 IssueCard { row }
+                            }
+                        }
+                        // A full first page may have more behind it; a short one cannot.
+                        if rows.len() as i64 == PAGE && !exhausted() {
+                            div { class: "flex justify-center mt-3",
+                                button {
+                                    class: "btn btn-sm btn-outline",
+                                    disabled: loading_more(),
+                                    onclick: {
+                                        let list_page = list_page.clone();
+                                        let first = rows.len() as i64;
+                                        move |_| {
+                                            let page = list_page(first + more_rows.read().len() as i64);
+                                            async move {
+                                                loading_more.set(true);
+                                                match page.await {
+                                                    Ok(next) => {
+                                                        if (next.len() as i64) < PAGE {
+                                                            exhausted.set(true);
+                                                        }
+                                                        more_rows.write().extend(next);
+                                                    }
+                                                    Err(e) => show_toast(
+                                                        format!("Could not load more: {e}"),
+                                                        ToastLevel::Error,
+                                                    ),
+                                                }
+                                                loading_more.set(false);
+                                            }
+                                        }
+                                    },
+                                    if loading_more() {
+                                        span { class: "loading loading-spinner loading-xs" }
+                                    }
+                                    "Load more"
+                                }
                             }
                         }
                     },
