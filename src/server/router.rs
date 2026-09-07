@@ -65,8 +65,14 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
             .continuously_delete_expired(tokio::time::Duration::from_secs(60 * 60)),
     );
 
+    // Lax rather than tower-sessions' default Strict: claude.ai opens the
+    // OAuth consent page by a top-level cross-site navigation, and Strict
+    // withholds the cookie on it — so a user who was already signed in got
+    // the login form on every MCP connect. Cross-site POSTs carry no cookie
+    // under Lax either, and dx-auth's origin check covers those.
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(app_state.config.secure_cookies)
+        .with_same_site(tower_sessions::cookie::SameSite::Lax)
         .with_expiry(Expiry::OnInactivity(Duration::days(7)))
         .with_signed(
             tower_sessions::cookie::Key::try_from(app_state.secrets.session_secret.as_slice())

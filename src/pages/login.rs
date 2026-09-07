@@ -1,8 +1,5 @@
 use dioxus::prelude::*;
 
-#[cfg(feature = "web")]
-use auth::UserDataRefreshTrigger;
-
 use crate::UserAuthState;
 use crate::components::logo::ThermiteMark;
 use crate::errors_data::demo_autologin;
@@ -82,13 +79,13 @@ pub fn LoginPage(redirect_url: String) -> Element {
                         // Auth crate's LoginPage (embedded — no wrapper/header)
                         auth::LoginPage {
                             redirect_url: redirect_url.clone(),
-                            on_success: move |_url: String| {
-                                #[cfg(feature = "web")]
-                                {
-                                    // Bump the refresh trigger so App re-fetches login data
-                                    let mut trigger = consume_context::<Signal<UserDataRefreshTrigger>>();
-                                    trigger.write().0 += 1;
-                                }
+                            // The crate hands back the validated destination; navigating is the
+                            // host app's job. A full page load, not a router push: the MCP connect
+                            // flow resumes at /oauth/authorize/resume, an Axum route the router
+                            // would treat as a 404 — and a handler that dropped the URL stranded
+                            // every connect on the dashboard instead of the consent page.
+                            on_success: move |url: String| {
+                                nav.push(NavigationTarget::<Route>::External(url));
                             },
                             embed: true,
                         }
