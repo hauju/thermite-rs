@@ -555,7 +555,8 @@ for self-reporting (see "Self-reporting" below).
 
 TailwindCSS 4 + DaisyUI 5, dark theme default. Source scanning is configured in `tailwind.css`;
 Dioxus 0.7+ auto-detects it and runs Tailwind during `dx serve`. Icons via `dioxus-free-icons`
-(Lucide). `safelist-docs-kit.html` exists because Tailwind cannot scan classes inside `~/.cargo`.
+(Lucide). `safelist-docs-kit.html` and `safelist-dx-auth.html` exist because Tailwind cannot scan classes
+inside `~/.cargo`; regenerate the latter from dx-auth's `login_page.rs` after bumping the crate.
 
 The palette is molten — orange primary, gold secondary, warm charcoal base — after the material
 the product is named for. Two things there are load-bearing rather than taste:

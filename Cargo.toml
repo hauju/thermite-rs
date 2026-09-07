@@ -60,7 +60,7 @@ percent-encoding = "2.3"
 dioxus-docs-kit = { version = "0.6.1", default-features = false }
 
 # Workspace crates
-auth = { package = "dx-auth", git = "https://github.com/hauju/dx-kit.git", tag = "dx-auth-v0.4.0", optional = true }
+auth = { package = "dx-auth", git = "https://github.com/hauju/dx-kit.git", tag = "dx-auth-v0.10.4", optional = true }
 crypto = { package = "dx-crypto", git = "https://github.com/hauju/dx-kit.git", tag = "dx-crypto-v0.1.0", optional = true }
 smtp = { package = "dx-smtp", git = "https://github.com/hauju/dx-kit.git", tag = "dx-smtp-v0.1.0", optional = true }
 # Ingest, grouping, and the queries the dashboard and the MCP tools both read.

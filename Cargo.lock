@@ -1848,15 +1848,15 @@ checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
 name = "dx-auth"
-version = "0.4.0"
-source = "git+https://github.com/hauju/dx-kit.git?tag=dx-auth-v0.4.0#64afbef607115802982d64a777144c74af4eac94"
+version = "0.10.4"
+source = "git+https://github.com/hauju/dx-kit.git?tag=dx-auth-v0.10.4#1d7aa3b193aa04304c402a220258d67c96a529a0"
 dependencies = [
  "async-trait",
  "axum",
  "base64 0.22.1",
  "chrono",
  "dioxus",
- "dx-crypto 0.1.0 (git+https://github.com/hauju/dx-kit.git?tag=dx-auth-v0.4.0)",
+ "dx-crypto 0.1.0 (git+https://github.com/hauju/dx-kit.git?tag=dx-auth-v0.10.4)",
  "gloo-timers 0.4.0",
  "governor",
  "js-sys",
@@ -1880,7 +1880,7 @@ dependencies = [
 [[package]]
 name = "dx-crypto"
 version = "0.1.0"
-source = "git+https://github.com/hauju/dx-kit.git?tag=dx-auth-v0.4.0#64afbef607115802982d64a777144c74af4eac94"
+source = "git+https://github.com/hauju/dx-kit.git?tag=dx-auth-v0.10.4#1d7aa3b193aa04304c402a220258d67c96a529a0"
 dependencies = [
  "aes-gcm",
  "argon2",

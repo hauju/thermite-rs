@@ -7,6 +7,7 @@ use crate::UserAuthState;
 use crate::components::logo::ThermiteMark;
 use crate::errors_data::demo_autologin;
 use crate::routes::Route;
+use crate::waitlist::waitlist_open;
 
 /// Login page that wraps the auth crate's LoginPage component.
 #[component]
@@ -23,6 +24,9 @@ pub fn LoginPage(redirect_url: String) -> Element {
 
     // A public sandbox has no login form: it signs the visitor in itself.
     let autologin = use_resource(|| async { demo_autologin().await.unwrap_or(false) });
+    // While hosted signup is behind the waitlist, the reassurance line must not promise a
+    // free start that the registration gate will refuse.
+    let waitlist = use_resource(|| async { waitlist_open().await.unwrap_or(false) });
     use_effect(move || {
         if autologin() == Some(true) {
             let _ = document::eval("window.location.href = '/demo';");
@@ -93,7 +97,11 @@ pub fn LoginPage(redirect_url: String) -> Element {
 
                         // Reassurance for new signups
                         p { class: "mt-6 text-center text-xs text-base-content/50",
-                            "New here? Free to start \u{00b7} no credit card required."
+                            if waitlist() == Some(true) {
+                                "Hosted signup is invitation-only for now — the waitlist on the pricing page is the way in."
+                            } else {
+                                "New here? Free to start \u{00b7} no credit card required."
+                            }
                         }
                     }
                 }

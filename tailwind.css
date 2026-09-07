@@ -92,6 +92,7 @@
 @source "./src/**/*.{rs,html,css}";
 @source "./crates/**/*.{rs,html,css}";
 @source "./safelist-docs-kit.html";
+@source "./safelist-dx-auth.html";
 
 /* ── Typography ──
    System sans stack for body text; Space Grotesk (self-hosted variable woff2,

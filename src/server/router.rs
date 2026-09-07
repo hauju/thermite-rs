@@ -86,6 +86,15 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
         trust_proxy_headers: app_state.config.trust_proxy_headers,
         allowed_registration_emails: app_state.config.allowed_registration_emails.clone(),
         allowed_registration_domains: app_state.config.allowed_registration_domains.clone(),
+        // The server-side code exchange, not the browser-redirect SSO mode: that needs a public
+        // FerrisKey client and a same-site identity provider, and thermite.rs is neither.
+        sso_enabled: false,
+        // Closed after the first account unless the allowlists say otherwise; the waitlist is
+        // how a stranger gets in (see `waitlist.rs`).
+        open_registration: false,
+        // The version every existing account accepted under dx-auth 0.4, which hard-coded it.
+        // Bumping it re-prompts everyone on their next login.
+        tos_version: Some("1.0".to_string()),
     };
 
     let auth_state = auth::AuthState {
