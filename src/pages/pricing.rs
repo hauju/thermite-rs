@@ -29,6 +29,22 @@ pub fn Pricing() -> Element {
     // recommendation rather than the free tier.
     let mut selected = use_signal(|| 1usize);
 
+    // Past the last tier the Team card stays the answer and becomes a conversation. Plain Rust
+    // here rather than string literals inside the props: rsx formats those into `String`s.
+    let beyond = selected() == 3;
+    let team_price = if beyond { "$49+" } else { "$49" };
+    let team_volume = if beyond {
+        "More than a million errors / month"
+    } else {
+        "1,000,000 errors / month"
+    };
+    let team_note = if beyond {
+        "Priced by what you send. Tell us the number and we quote it."
+    } else {
+        "About steady production traffic across several services."
+    };
+    let team_cta = if beyond { "Talk to us" } else { "Start free" };
+
     rsx! {
         section { class: "relative overflow-hidden",
             div { class: "landing-hero-glow" }
@@ -46,8 +62,9 @@ pub fn Pricing() -> Element {
                 }
 
                 // The one number that picks a plan. The stop drives the cards below: the plan
-                // it lands on gets the ring, and past the last hosted tier the self-hosted card
-                // takes it, which is the honest answer at that volume.
+                // it lands on gets the ring. Past the last tier the Team card keeps it and turns
+                // into a conversation — that reader is the most valuable one on the page, and
+                // pointing them at self-hosting would send them away for nothing.
                 div { class: "card card-elevated bg-base-200 mb-6",
                     div { class: "card-body gap-3",
                         div { class: "flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1",
@@ -118,21 +135,22 @@ pub fn Pricing() -> Element {
                     }
                     PlanCard {
                         name: "Team",
-                        price: "$49",
+                        price: team_price,
                         cadence: "/month",
                         tagline: "For a product with traffic.",
-                        volume: "1,000,000 errors / month",
-                        volume_note: "About steady production traffic across several services.",
+                        volume: team_volume,
+                        volume_note: team_note,
                         features: vec![
                             "Everything in Pro",
                             "90-day retention",
                             "Priority support",
                             "Help migrating off Sentry",
                         ],
-                        cta: "Start free",
-                        featured: selected() == 2,
+                        cta: team_cta,
+                        contact: beyond,
+                        featured: selected() >= 2,
                     }
-                    SelfHostedCard { featured: selected() == 3 }
+                    SelfHostedCard {}
                 }
 
                 // Nobody can estimate their own error volume, which is where pricing by volume
@@ -201,12 +219,20 @@ fn PlanCard(
     volume_note: &'static str,
     features: Vec<&'static str>,
     cta: &'static str,
+    /// The call to action is a conversation, not a signup.
+    #[props(default)]
+    contact: bool,
     featured: bool,
 ) -> Element {
     let card_class = if featured {
         "card card-elevated bg-base-200 h-full ring-2 ring-primary relative"
     } else {
         "card card-elevated bg-base-200 h-full"
+    };
+    let cta_class = if featured {
+        "btn btn-primary btn-strong rounded-xl w-full"
+    } else {
+        "btn btn-outline rounded-xl w-full"
     };
 
     rsx! {
@@ -242,10 +268,14 @@ fn PlanCard(
                     }
                 }
                 div { class: "flex-1" }
-                Link {
-                    to: Route::LoginPage { redirect_url: "/dashboard".to_string() },
-                    class: if featured { "btn btn-primary btn-strong rounded-xl w-full" } else { "btn btn-outline rounded-xl w-full" },
-                    "{cta}"
+                if contact {
+                    a { class: "{cta_class}", href: "mailto:mail@haukejung.de", "{cta}" }
+                } else {
+                    Link {
+                        to: Route::LoginPage { redirect_url: "/dashboard".to_string() },
+                        class: "{cta_class}",
+                        "{cta}"
+                    }
                 }
             }
         }
@@ -253,23 +283,12 @@ fn PlanCard(
 }
 
 /// Broken out from [`PlanCard`] because its call to action is documentation rather than signup —
-/// there is nothing to buy, which is the point of the card. It takes the ring when the slider
-/// runs past the hosted tiers: at that volume, running it yourself is the plan.
+/// there is nothing to buy, which is the point of the card. The slider never lands on it: it is
+/// the anchor that makes the hosted prices read as fair, not a plan to be steered into.
 #[component]
-fn SelfHostedCard(featured: bool) -> Element {
-    let card_class = if featured {
-        "card card-elevated bg-base-200 h-full ring-2 ring-primary relative"
-    } else {
-        "card card-elevated bg-base-200 h-full"
-    };
-
+fn SelfHostedCard() -> Element {
     rsx! {
-        div { class: "{card_class}",
-            if featured {
-                span { class: "absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-content whitespace-nowrap",
-                    "Any volume"
-                }
-            }
+        div { class: "card card-elevated bg-base-200 h-full",
             div { class: "card-body gap-4",
                 div {
                     h3 { class: "font-display text-lg font-bold", "Self-hosted" }
@@ -306,7 +325,7 @@ fn SelfHostedCard(featured: bool) -> Element {
                     to: Route::DocsPage {
                         slug: vec!["getting-started".into(), "installation".into()],
                     },
-                    class: if featured { "btn btn-primary btn-strong rounded-xl w-full gap-2" } else { "btn btn-outline rounded-xl w-full gap-2" },
+                    class: "btn btn-outline rounded-xl w-full gap-2",
                     Icon { icon: LdBookOpen, width: 16, height: 16 }
                     "Read the docs"
                 }
