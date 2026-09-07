@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use dioxus_free_icons::Icon;
-use dioxus_free_icons::icons::ld_icons::LdTwitter;
+use dioxus_free_icons::icons::ld_icons::{LdGithub, LdLinkedin, LdTwitter};
 
 use crate::components::logo::ThermiteMark;
 use crate::routes::Route;
@@ -74,6 +74,22 @@ pub fn Footer() -> Element {
                             class: "text-base-content/40 transition-colors hover:text-base-content",
                             "aria-label": "Thermite on X",
                             Icon { icon: LdTwitter, width: 20, height: 20 }
+                        }
+                        a {
+                            href: "https://github.com/hauju",
+                            target: "_blank",
+                            rel: "noopener noreferrer",
+                            class: "text-base-content/40 transition-colors hover:text-base-content",
+                            "aria-label": "hauju on GitHub",
+                            Icon { icon: LdGithub, width: 20, height: 20 }
+                        }
+                        a {
+                            href: "https://www.linkedin.com/in/haukejung/",
+                            target: "_blank",
+                            rel: "noopener noreferrer",
+                            class: "text-base-content/40 transition-colors hover:text-base-content",
+                            "aria-label": "Hauke Jung on LinkedIn",
+                            Icon { icon: LdLinkedin, width: 20, height: 20 }
                         }
                     }
                 }
