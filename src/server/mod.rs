@@ -18,6 +18,7 @@ pub mod security;
 pub mod state;
 pub mod thermite;
 pub mod user;
+pub mod waitlist;
 
 #[cfg(test)]
 pub mod test_support;

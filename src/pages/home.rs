@@ -4,11 +4,16 @@ use dioxus_free_icons::{Icon, icons::ld_icons::*};
 use crate::components::logo::ThermiteMark;
 use crate::errors_data::demo_link;
 use crate::routes::Route;
+use crate::waitlist::{WaitlistForm, waitlist_open};
 
 /// Landing page.
 #[component]
 pub fn Home() -> Element {
     let demo = use_resource(|| async { demo_link().await.ok().flatten() });
+    // Server-rendered rather than a skeleton: the primary call to action must not flip from a
+    // button to a form after the page has painted.
+    let waitlist = use_server_future(|| async { waitlist_open().await.unwrap_or(false) })?;
+    let waitlist = waitlist() == Some(true);
     rsx! {
         section { class: "relative overflow-hidden",
             // Ambient hero backdrop: soft azure glow + masked guideline grid.
@@ -38,12 +43,21 @@ pub fn Home() -> Element {
                         "Point an unmodified Sentry SDK at Thermite and errors group into issues in your Postgres. Over MCP, a coding agent claims each new issue, reads the same stack trace you see, and leaves its diagnosis on the issue page."
                     }
 
+                    // While hosted signup is behind the waitlist, the form takes the primary spot:
+                    // a "Get Started" that ends at a closed registration is worse than none.
+                    if waitlist {
+                        div { class: "landing-hero-rise hero-delay-4 w-full flex justify-center mb-4",
+                            WaitlistForm {}
+                        }
+                    }
                     div { class: "landing-hero-rise hero-delay-4 flex flex-col sm:flex-row items-center gap-3",
-                        Link {
-                            to: Route::LoginPage { redirect_url: "/dashboard".to_string() },
-                            class: "btn btn-primary btn-lg btn-strong rounded-xl gap-2",
-                            "Get Started"
-                            Icon { icon: LdArrowRight, width: 18, height: 18 }
+                        if !waitlist {
+                            Link {
+                                to: Route::LoginPage { redirect_url: "/dashboard".to_string() },
+                                class: "btn btn-primary btn-lg btn-strong rounded-xl gap-2",
+                                "Get Started"
+                                Icon { icon: LdArrowRight, width: 18, height: 18 }
+                            }
                         }
                         // The live board, when this instance exposes one: the shortest path to
                         // "what does it actually look like".

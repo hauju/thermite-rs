@@ -81,7 +81,7 @@ axum = { version = "0.8", optional = true }
 tokio = { version = "1", features = ["rt", "time", "signal", "macros"], optional = true }
 tower-sessions = { version = "0.14", features = ["signed"], optional = true }
 tower-sessions-sqlx-store = { version = "0.15", features = ["postgres"], optional = true }
-tower-http = { version = "0.6", features = ["compression-gzip", "trace"], optional = true }
+tower-http = { version = "0.6", features = ["compression-br", "compression-gzip", "trace"], optional = true }
 governor = { version = "0.10", features = ["std"], optional = true }
 dotenvy = { version = "0.15", optional = true }
 secrecy = { version = "0.10", optional = true }

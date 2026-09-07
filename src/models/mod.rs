@@ -5,6 +5,7 @@ pub mod errors;
 pub mod repo_links;
 pub mod subscription;
 pub mod user;
+pub mod waitlist;
 
 #[cfg(feature = "server")]
 pub use error::AppError;

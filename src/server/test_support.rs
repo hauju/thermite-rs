@@ -55,6 +55,7 @@ pub fn test_state(db: Database) -> AppState {
         demo_project: None,
         demo_autologin: false,
         demo_url: None,
+        waitlist: false,
         db_max_connections: 10,
         db_ingest_max_connections: 10,
     };

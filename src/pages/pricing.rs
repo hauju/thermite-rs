@@ -2,6 +2,7 @@ use dioxus::prelude::*;
 use dioxus_free_icons::{Icon, icons::ld_icons::*};
 
 use crate::routes::Route;
+use crate::waitlist::{WaitlistForm, waitlist_open};
 
 /// The volumes the slider snaps to. Tiered pricing gets a tiered control: a continuous slider
 /// would promise a price for 37,000 errors that no plan has.
@@ -28,6 +29,9 @@ pub fn Pricing() -> Element {
     // Starts on the middle plan, so a reader who never touches the slider still sees a
     // recommendation rather than the free tier.
     let mut selected = use_signal(|| 1usize);
+    // Server-rendered so the calls to action do not flip after the first paint.
+    let waitlist = use_server_future(|| async { waitlist_open().await.unwrap_or(false) })?;
+    let waitlist = waitlist() == Some(true);
 
     // Past the last tier the Team card stays the answer and becomes a conversation. Plain Rust
     // here rather than string literals inside the props: rsx formats those into `String`s.
@@ -115,6 +119,7 @@ pub fn Pricing() -> Element {
                             "Email and webhook alerts",
                         ],
                         cta: "Start free",
+                        waitlist,
                         featured: selected() == 0,
                     }
                     PlanCard {
@@ -131,6 +136,7 @@ pub fn Pricing() -> Element {
                             "Cron monitoring and release health",
                         ],
                         cta: "Start free",
+                        waitlist,
                         featured: selected() == 1,
                     }
                     PlanCard {
@@ -147,24 +153,44 @@ pub fn Pricing() -> Element {
                             "Help migrating off Sentry",
                         ],
                         cta: team_cta,
+                        waitlist,
                         contact: beyond,
                         featured: selected() >= 2,
                     }
                     SelfHostedCard {}
                 }
 
+                // Where the cards' "Join the waitlist" buttons point while hosted signup is closed.
+                if waitlist {
+                    div { id: "waitlist", class: "mt-10 flex flex-col items-center gap-3 text-center",
+                        h2 { class: "text-xl font-bold tracking-tight", "Hosted signup opens in batches." }
+                        p { class: "text-sm text-base-content/60 max-w-lg",
+                            "Leave an address and you hear from us when yours comes up. Self-hosting needs no invitation, and the live demo needs no account."
+                        }
+                        WaitlistForm {}
+                    }
+                }
+
                 // Nobody can estimate their own error volume, which is where pricing by volume
                 // loses people. Turn the unknown into a reason to sign up rather than a reason to
                 // leave — the dashboard answers it from the outcomes rollup within a day.
                 p { class: "text-center text-sm text-base-content/60 mt-8",
-                    "Not sure what you send? Start free — the dashboard shows your real volume within a day."
+                    if waitlist {
+                        "Not sure what you send? Once you are in, the dashboard shows your real volume within a day."
+                    } else {
+                        "Not sure what you send? Start free — the dashboard shows your real volume within a day."
+                    }
                 }
 
                 // Said plainly rather than in fine print. For a product whose pitch is that error
                 // data never leaves your infrastructure, being caught overstating what ships costs
                 // more than the signups it would buy.
                 div { class: "mx-auto mt-6 max-w-xl rounded-xl border border-base-300 bg-base-200/40 px-5 py-3 text-center text-sm text-base-content/60",
-                    "Pro and Team are not billable yet. Sign up now and you are on Free with the limits lifted — we will tell you before that changes."
+                    if waitlist {
+                        "Pro and Team are not billable yet, and nothing is charged before we say so — the waitlist is how you hear about it first."
+                    } else {
+                        "Pro and Team are not billable yet. Sign up now and you are on Free with the limits lifted — we will tell you before that changes."
+                    }
                 }
 
                 // The questions that actually decide whether someone signs up.
@@ -222,6 +248,9 @@ fn PlanCard(
     /// The call to action is a conversation, not a signup.
     #[props(default)]
     contact: bool,
+    /// Hosted signup is closed: the call to action points at the waitlist form instead.
+    #[props(default)]
+    waitlist: bool,
     featured: bool,
 ) -> Element {
     let card_class = if featured {
@@ -270,6 +299,8 @@ fn PlanCard(
                 div { class: "flex-1" }
                 if contact {
                     a { class: "{cta_class}", href: "mailto:mail@haukejung.de", "{cta}" }
+                } else if waitlist {
+                    a { class: "{cta_class}", href: "#waitlist", "Join the waitlist" }
                 } else {
                     Link {
                         to: Route::LoginPage { redirect_url: "/dashboard".to_string() },

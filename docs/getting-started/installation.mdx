@@ -148,6 +148,9 @@ server. Anything server-side needs `--no-default-features --features server`, wh
     - `THERMITE_DEMO_AUTOLOGIN` — `true` makes `GET /demo` sign anyone in as the shared `demo`
       user, with write access to every project. A public sandbox: run it on a throwaway
       instance only.
+    - `THERMITE_WAITLIST` — `true` puts hosted signup behind a waitlist: the landing and pricing
+      pages collect addresses (into the `waitlist` table) instead of sending visitors to a closed
+      registration.
   </Accordion>
   <Accordion title="Alerting">
     - `THERMITE_ALERT_EMAIL` — comma-separated recipients

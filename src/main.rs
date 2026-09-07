@@ -10,6 +10,7 @@ pub mod routes;
 #[cfg(feature = "server")]
 mod server;
 mod version;
+mod waitlist;
 
 use components::logo::ThermiteMarkDefs;
 use components::toast::{ToastManager, ToastProvider};
@@ -19,7 +20,9 @@ pub const FAVICON: Asset = asset!("/assets/favicon.ico");
 // The plated favicon, not the bare mark: this is what SVG-capable browsers show,
 // so it must match the .ico rather than being a second, transparent brand mark.
 pub const FAVICON_SVG: Asset = asset!("/assets/favicon.svg");
-pub const MAIN_CSS: Asset = asset!("/assets/main.css");
+/// Inlined into `<head>`: under 2 KiB gzipped, and a separate render-blocking
+/// request costs more than its bytes.
+pub const MAIN_CSS: &str = include_str!("../assets/main.css");
 pub const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
 /// Variable weight (300–700), latin subset, self-hosted — no font CDN request.
 pub const FONT_DISPLAY: Asset = asset!("/assets/fonts/space-grotesk-latin.woff2");
@@ -261,7 +264,7 @@ fn App() -> Element {
         document::Link { rel: "icon", href: FAVICON }
         // Listed after the .ico so browsers that understand SVG favicons prefer it.
         document::Link { rel: "icon", r#type: "image/svg+xml", href: FAVICON_SVG }
-        document::Link { rel: "stylesheet", href: MAIN_CSS }
+        document::Style { {MAIN_CSS} }
         document::Link { rel: "stylesheet", href: TAILWIND_CSS }
         document::Style {
             {format!(

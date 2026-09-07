@@ -189,7 +189,7 @@ impl IpRateLimiter {
 /// every per-IP quota in the process. A deployment with more than one proxy hop must make its
 /// edge append to (never pass through) the client-supplied header — nginx's
 /// `$proxy_add_x_forwarded_for` and every managed CDN already do.
-fn rate_limit_key(
+pub(crate) fn rate_limit_key(
     headers: &HeaderMap,
     peer: Option<SocketAddr>,
     trust_proxy_headers: bool,

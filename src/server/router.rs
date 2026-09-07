@@ -9,6 +9,7 @@
 use std::sync::Arc;
 
 use axum::{Extension, Router};
+use tower_http::CompressionLevel;
 use tower_http::compression::CompressionLayer;
 use tower_http::trace::TraceLayer;
 use tower_sessions::cookie::time::Duration;
@@ -140,7 +141,9 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
         // GET /llms.txt — orientation page so an agent can discover the MCP/REST surface itself.
         .merge(server::llms::llms_router())
         .layer(session_layer)
-        .layer(CompressionLayer::new())
+        // Brotli 6: 10-20% smaller than gzip at ~4 ms per page. The library default
+        // (brotli 11) costs ~150 ms of CPU per 250 KiB response.
+        .layer(CompressionLayer::new().quality(CompressionLevel::Precise(6)))
         .layer(Extension(app_state))
         // Per-IP rate-limit backstop (Extension must sit outside the middleware).
         .layer(axum::middleware::from_fn(backstop_except_ingest))

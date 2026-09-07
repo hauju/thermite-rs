@@ -417,6 +417,13 @@ ever set; the route does not exist without the flag and boot warns. The shell an
 send an anonymous visitor to `/demo` instead of the identity provider while it is on, and
 `THERMITE_DEMO_URL` points the landing page's "See the live demo" button at that instance.
 
+**Hosted signup can sit behind a waitlist.** `THERMITE_WAITLIST` (`src/waitlist.rs`) turns the
+landing and pricing pages' signup buttons into a form that writes to the `waitlist` table, one
+row per normalised address, five submissions a minute per IP. Set it while registration is
+closed — the default once the first account exists — because a "Get Started" that ends at a
+refused login is worse than none. Docs, self-hosting and the demo are untouched: it gates the
+hosted signup, not the product.
+
 Pages use `use_resource` rather than `use_server_future`, deliberately: these are authenticated views
 behind skeletons, and blocking SSR on database queries buys nothing. There is no hydration mismatch
 because both server and client start from `None`.

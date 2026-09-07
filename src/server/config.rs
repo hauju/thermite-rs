@@ -33,6 +33,9 @@ pub struct Config {
     /// Where the landing page's "See the live demo" button goes. Unset: this instance's
     /// `demo_project` board, if there is one.
     pub demo_url: Option<String>,
+    /// Hosted signup is behind a waitlist: the landing and pricing pages collect addresses instead
+    /// of sending people to a registration that would refuse them.
+    pub waitlist: bool,
     /// Size of the interactive pool (dashboard, sessions, API, MCP).
     pub db_max_connections: u32,
     /// Size of the ingest pool — the ceiling on concurrent event digests.
@@ -92,6 +95,9 @@ impl Config {
                 .map(|v| v == "true")
                 .unwrap_or(false),
             demo_url: get_env_optional("THERMITE_DEMO_URL"),
+            waitlist: get_env_optional("THERMITE_WAITLIST")
+                .map(|v| v == "true")
+                .unwrap_or(false),
             db_max_connections: parse_env_or("DATABASE_MAX_CONNECTIONS", 10),
             db_ingest_max_connections: parse_env_or("DATABASE_INGEST_MAX_CONNECTIONS", 10),
         })
