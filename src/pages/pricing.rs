@@ -3,26 +3,83 @@ use dioxus_free_icons::{Icon, icons::ld_icons::*};
 
 use crate::routes::Route;
 
+/// The volumes the slider snaps to. Tiered pricing gets a tiered control: a continuous slider
+/// would promise a price for 37,000 errors that no plan has.
+const STOPS: [&str; 4] = ["1k", "100k", "1M", "More"];
+
+/// The volume a stop stands for, as the number a reader compares with their own.
+fn stop_label(stop: usize) -> &'static str {
+    match stop {
+        0 => "1,000",
+        1 => "100,000",
+        2 => "1,000,000",
+        _ => "1,000,000+",
+    }
+}
+
 /// Pricing page.
 ///
-/// Priced by event volume rather than by seat: the thing reading Thermite is usually an agent, and
+/// Priced by error volume rather than by seat: the thing reading Thermite is usually an agent, and
 /// charging per human for that makes no sense. Every plan carries the whole product — the tiers
-/// differ only in how many events they accept.
+/// differ only in how many errors they accept, so the page leads with that one number: a slider
+/// sets it and the plan that fits lights up.
 #[component]
 pub fn Pricing() -> Element {
+    // Starts on the middle plan, so a reader who never touches the slider still sees a
+    // recommendation rather than the free tier.
+    let mut selected = use_signal(|| 1usize);
+
     rsx! {
         section { class: "relative overflow-hidden",
             div { class: "landing-hero-glow" }
             div { class: "landing-hero-grid" }
 
             div { class: "container relative mx-auto px-4 pt-20 pb-16 max-w-5xl",
-                div { class: "flex flex-col items-center text-center mb-14",
+                div { class: "flex flex-col items-center text-center mb-10",
                     h1 { class: "landing-hero-rise text-4xl sm:text-5xl font-black tracking-tight mb-5",
-                        "Priced by events, "
+                        "Priced by errors, "
                         span { class: "landing-gradient-text", "not by seats." }
                     }
                     p { class: "landing-hero-rise hero-delay-1 text-lg text-base-content/70 max-w-2xl",
-                        "Your agent is not a seat. Every plan includes the full triage loop, the MCP server and the REST API — the only thing that changes is how many events you send."
+                        "Your agent is not a seat. Every plan includes the full triage loop, the MCP server and the REST API — the only thing that changes is how many errors you send."
+                    }
+                }
+
+                // The one number that picks a plan. The stop drives the cards below: the plan
+                // it lands on gets the ring, and past the last hosted tier the self-hosted card
+                // takes it, which is the honest answer at that volume.
+                div { class: "card card-elevated bg-base-200 mb-6",
+                    div { class: "card-body gap-3",
+                        div { class: "flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1",
+                            div {
+                                p { class: "text-sm font-semibold", "Errors a month" }
+                                p { class: "text-xs text-base-content/50",
+                                    "The same binary as self-hosted, run by us with the dashboard, MCP server and alerts attached. Set your volume."
+                                }
+                            }
+                            span { class: "font-display text-2xl font-black tracking-tight tabular-nums",
+                                "{stop_label(selected())}"
+                            }
+                        }
+                        input {
+                            r#type: "range",
+                            min: "0",
+                            max: "3",
+                            step: "1",
+                            value: "{selected}",
+                            class: "range range-primary w-full",
+                            aria_label: "Errors a month",
+                            oninput: move |e| selected.set(e.value().parse().unwrap_or(1)),
+                        }
+                        div { class: "flex justify-between px-1 text-xs text-base-content/50",
+                            for (i, stop) in STOPS.iter().enumerate() {
+                                span {
+                                    key: "{stop}",
+                                    class: if selected() == i { "text-primary font-semibold" } else { "" },
+                                    "{stop}"
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -32,7 +89,7 @@ pub fn Pricing() -> Element {
                         price: "$0",
                         cadence: "forever",
                         tagline: "For one project.",
-                        volume: "1,000 events / month",
+                        volume: "1,000 errors / month",
                         volume_note: "About a side project, or a quiet first week.",
                         features: vec![
                             "1 project",
@@ -41,14 +98,14 @@ pub fn Pricing() -> Element {
                             "Email and webhook alerts",
                         ],
                         cta: "Start free",
-                        featured: false,
+                        featured: selected() == 0,
                     }
                     PlanCard {
                         name: "Pro",
                         price: "$19",
                         cadence: "/month",
                         tagline: "For a product in production.",
-                        volume: "100,000 events / month",
+                        volume: "100,000 errors / month",
                         volume_note: "About a small SaaS having a bad month.",
                         features: vec![
                             "Unlimited projects",
@@ -57,14 +114,14 @@ pub fn Pricing() -> Element {
                             "Cron monitoring and release health",
                         ],
                         cta: "Start free",
-                        featured: true,
+                        featured: selected() == 1,
                     }
                     PlanCard {
                         name: "Team",
                         price: "$49",
                         cadence: "/month",
                         tagline: "For a product with traffic.",
-                        volume: "1,000,000 events / month",
+                        volume: "1,000,000 errors / month",
                         volume_note: "About steady production traffic across several services.",
                         features: vec![
                             "Everything in Pro",
@@ -73,12 +130,12 @@ pub fn Pricing() -> Element {
                             "Help migrating off Sentry",
                         ],
                         cta: "Start free",
-                        featured: false,
+                        featured: selected() == 2,
                     }
-                    SelfHostedCard {}
+                    SelfHostedCard { featured: selected() == 3 }
                 }
 
-                // Nobody can estimate their own event volume, which is where pricing by volume
+                // Nobody can estimate their own error volume, which is where pricing by volume
                 // loses people. Turn the unknown into a reason to sign up rather than a reason to
                 // leave — the dashboard answers it from the outcomes rollup within a day.
                 p { class: "text-center text-sm text-base-content/60 mt-8",
@@ -99,12 +156,12 @@ pub fn Pricing() -> Element {
                     }
                     div { class: "grid grid-cols-1 md:grid-cols-2 gap-4",
                         FaqCard {
-                            question: "What counts as an event?",
-                            answer: "One error or message an SDK sends and Thermite stores. Retries of an event you already sent are deduplicated and cost nothing, and the item types Thermite accepts but does not store — sessions, transactions, client reports — are never charged.",
+                            question: "What counts as an error?",
+                            answer: "One error an SDK sends and Thermite stores — every occurrence, not every distinct bug. A storm of the same crash counts each time it happens, though it lands in one issue and, past your quota, is throttled rather than billed. Retries of an error you already sent are deduplicated and cost nothing, and what Thermite accepts but does not store — sessions, transactions, client reports — is never charged.",
                         }
                         FaqCard {
                             question: "What happens when I hit the limit?",
-                            answer: "Over-quota events are rejected with a 429 and a Retry-After, exactly as Sentry does, so your SDK backs off and retries instead of failing. Nothing is dropped in silence: every rejection is counted and shown on the dashboard.",
+                            answer: "Over-quota errors are rejected with a 429 and a Retry-After, exactly as Sentry does, so your SDK backs off and retries instead of failing. Nothing is dropped in silence: every rejection is counted and shown on the dashboard.",
                         }
                         FaqCard {
                             question: "Can I move between hosted and self-hosted?",
@@ -155,8 +212,8 @@ fn PlanCard(
     rsx! {
         div { class: "{card_class}",
             if featured {
-                span { class: "absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-content",
-                    "Most popular"
+                span { class: "absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-content whitespace-nowrap",
+                    "Your volume"
                 }
             }
             div { class: "card-body gap-4",
@@ -196,11 +253,23 @@ fn PlanCard(
 }
 
 /// Broken out from [`PlanCard`] because its call to action is documentation rather than signup —
-/// there is nothing to buy, which is the point of the card.
+/// there is nothing to buy, which is the point of the card. It takes the ring when the slider
+/// runs past the hosted tiers: at that volume, running it yourself is the plan.
 #[component]
-fn SelfHostedCard() -> Element {
+fn SelfHostedCard(featured: bool) -> Element {
+    let card_class = if featured {
+        "card card-elevated bg-base-200 h-full ring-2 ring-primary relative"
+    } else {
+        "card card-elevated bg-base-200 h-full"
+    };
+
     rsx! {
-        div { class: "card card-elevated bg-base-200 h-full",
+        div { class: "{card_class}",
+            if featured {
+                span { class: "absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-content whitespace-nowrap",
+                    "Any volume"
+                }
+            }
             div { class: "card-body gap-4",
                 div {
                     h3 { class: "font-display text-lg font-bold", "Self-hosted" }
@@ -211,7 +280,7 @@ fn SelfHostedCard() -> Element {
                     span { class: "text-base-content/50 text-sm", "forever" }
                 }
                 div { class: "border-y border-base-300 py-3",
-                    p { class: "text-sm font-semibold", "Unlimited events" }
+                    p { class: "text-sm font-semibold", "Unlimited errors" }
                     p { class: "text-xs text-base-content/50 mt-0.5",
                         "Bounded by your disk, not by us."
                     }
@@ -237,7 +306,7 @@ fn SelfHostedCard() -> Element {
                     to: Route::DocsPage {
                         slug: vec!["getting-started".into(), "installation".into()],
                     },
-                    class: "btn btn-outline rounded-xl w-full gap-2",
+                    class: if featured { "btn btn-primary btn-strong rounded-xl w-full gap-2" } else { "btn btn-outline rounded-xl w-full gap-2" },
                     Icon { icon: LdBookOpen, width: 16, height: 16 }
                     "Read the docs"
                 }
@@ -255,5 +324,18 @@ fn FaqCard(question: &'static str, answer: &'static str) -> Element {
                 p { class: "text-base-content/60 text-sm leading-relaxed", "{answer}" }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{STOPS, stop_label};
+
+    #[test]
+    fn every_stop_has_a_volume_and_the_last_is_open_ended() {
+        let labels: Vec<_> = (0..STOPS.len()).map(stop_label).collect();
+        assert_eq!(labels, ["1,000", "100,000", "1,000,000", "1,000,000+"]);
+        // Anything the range input could send past the last stop reads as the open end.
+        assert_eq!(stop_label(42), "1,000,000+");
     }
 }
