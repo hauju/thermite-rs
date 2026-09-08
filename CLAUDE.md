@@ -437,6 +437,44 @@ Charts are inline SVG (`src/components/sparkline.rs`) — bars over a fixed buck
 or interaction, where a charting dependency would be more code than the shapes. A non-zero bucket
 always gets a visible sliver so "rare" never renders identically to "never".
 
+**Every URL previews with a share card.** `components::meta` writes the Open Graph / Twitter tags:
+`ShareMeta` once at the app root (site name, locale, `og:image` with its declared size and alt, the
+card type) and `PageMeta` on the public pages only (title, description, canonical, `og:url`) —
+never both for one property, because scrapers take the first occurrence and a root default would
+override the page. Docs pages get theirs from the docs registry with the kit's `auto_meta` off: it
+would add a second `og:type` and a `summary` card, and cannot write a canonical without an origin
+the client lacks; the cost is the kit's `TechArticle` JSON-LD. Canonicals follow `BASE_URL`, so
+every instance canonicalises itself, the demo included (a cross-domain canonical beside `noindex`
+is the conflicting signal Google warns about). The image is `GET /og.png` (`server::og`), a fixed
+path so the tags can name it; the demo instance serves `assets/og-demo.png` there instead, so the
+tags are identical everywhere and only the server knows. The tags append
+`?v=SHARE_IMAGE_VERSION` — bump it on every redraw, because the scrapers keep a card for weeks
+and only a new URL reaches a link already shared. `scripts/og.py` writes the SVG sources with the
+type outlined (pango cannot pick weights from the variable Space Grotesk) and `just og` renders
+the PNGs. Dioxus writes head tags at server render only and hydration leaves them alone, so
+`origin()` reads the configuration on the server and returns a placeholder on the client — but
+the client must still mount the same components in the same order, or the hydration entries
+drift.
+
+**Only the public pages are indexable.** `server::seo` serves `robots.txt` (crawlers off `/api/`,
+`/mcp`, `/oauth/`, `/health`, `/ready` — never a `Disallow` on anything a person shares, because
+link-preview crawlers honour it and the link would lose its card) and `sitemap.xml` (the marketing
+and legal pages plus every docs page, read from the docs registry; absent on the demo instance).
+The pages behind the login, and every page of the demo instance, carry `X-Robots-Tag: noindex`
+instead, set in the same layer as the hardening headers. The same module patches `lang="en"` onto
+the SSR shell's `<html>` on the way out — inside the compression layer, and buffering the body,
+which is free only while SSR streaming stays off — rather than carrying a copy of `dx`'s index
+template. `/` and `/pricing` add `SoftwareApplication` JSON-LD sharing one `@id`, with monthly
+`Offer`s; the pricing offers repeat the card literals on purpose, so keep the two in step.
+
+**The docs are readable without rendering them.** `server::seo` serves every docs page as
+Markdown at `/docs/<path>.md` (each page links to its own with `rel="alternate"`) and the whole
+set at `/llms-full.txt`; `/llms.txt` lists both under the MCP orientation. All of it comes from
+the docs registry (`pages::docs::DOCS`), generated the way `dioxus-docs-kit`'s `SeoRouter` would
+— that router stays unmounted, and its `server` feature off, because it also claims `/llms.txt`,
+`/robots.txt` and `/sitemap.xml`, and each of those says more on this instance than the docs
+alone. Merging it would panic at boot on the duplicate routes.
+
 ### Key patterns
 
 - **Global state**: `AppState::global()` via `OnceLock`, also an Axum extractor. Carries a

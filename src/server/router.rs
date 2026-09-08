@@ -119,6 +119,7 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
 
     // HSTS is only safe over HTTPS, so gate it on the same flag as secure cookies.
     let hsts = app_state.config.secure_cookies;
+    let demo = app_state.config.demo_autologin;
     let trust_proxy = app_state.config.trust_proxy_headers;
     // Global per-IP backstop against abuse; sensitive sub-routers add stricter quotas, and the
     // ingest paths are exempted below in favour of their own limiter. High enough that a burst
@@ -127,7 +128,7 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
     let pool = app_state.db.pool.clone();
 
     // Public sandbox: GET /demo signs anyone in as the shared demo user (see server::demo_login).
-    let demo_login = if app_state.config.demo_autologin {
+    let demo_login = if demo {
         tracing::warn!(
             "THERMITE_DEMO_AUTOLOGIN is set: GET /demo signs anyone in as the shared demo user, with write access to every project"
         );
@@ -151,10 +152,16 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
         .merge(server::thermite::api_router(app_state.clone()))
         // PWA manifest, service worker, and app icons (see src/server/pwa).
         .merge(server::pwa::pwa_router())
+        // GET /og.png — the share card; the demo instance serves its own (see src/server/og).
+        .merge(server::og::og_router(demo))
+        // GET /robots.txt and /sitemap.xml (see src/server/seo).
+        .merge(server::seo::seo_router(&app_state.config.base_url, demo))
         // GET /health (liveness, used by the Docker HEALTHCHECK) and /ready (readiness).
         .merge(server::health::health_router())
         // GET /llms.txt — orientation page so an agent can discover the MCP/REST surface itself.
-        .merge(server::llms::llms_router())
+        .merge(server::llms::llms_router(&app_state.config.base_url))
+        // Innermost, inside the compression layer: it reads the HTML body.
+        .layer(axum::middleware::from_fn(server::seo::html_lang))
         .layer(session_layer)
         // Brotli 6: 10-20% smaller than gzip at ~4 ms per page. The library default
         // (brotli 11) costs ~150 ms of CPU per 250 KiB response.
@@ -163,11 +170,16 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
         // Per-IP rate-limit backstop (Extension must sit outside the middleware).
         .layer(axum::middleware::from_fn(backstop_except_ingest))
         .layer(Extension(global_rate_limiter))
-        // Hardening headers on every response (including errors above).
+        // Hardening headers on every response (including errors above), and `noindex` on the
+        // pages that must stay out of the search index (see src/server/seo).
         .layer(axum::middleware::from_fn(
             move |req: axum::extract::Request, next: axum::middleware::Next| async move {
+                let noindex = demo || server::seo::is_noindex_path(req.uri().path());
                 let mut res = next.run(req).await;
                 server::security::apply_security_headers(res.headers_mut(), hsts);
+                if noindex {
+                    server::seo::mark_noindex(res.headers_mut());
+                }
                 res
             },
         ))

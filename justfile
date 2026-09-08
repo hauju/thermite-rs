@@ -49,6 +49,13 @@ icons:
            "$tmp"/fav-64.png assets/favicon.ico
     rm -rf "$tmp"
 
+# Re-render the share cards (og:image, 1200x630) from their SVG sources. The type in
+# those SVGs is outlined, so this needs only librsvg (`brew install librsvg`). To change
+# the copy, edit and run scripts/og.py first: it rewrites the SVGs.
+og:
+    rsvg-convert -w 1200 -h 630 assets/og.svg -o assets/og.png
+    rsvg-convert -w 1200 -h 630 assets/og-demo.svg -o assets/og-demo.png
+
 # Copy .env.example -> .env and fill in a freshly generated SESSION_SECRET.
 bootstrap:
     #!/usr/bin/env bash

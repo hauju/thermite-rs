@@ -13,6 +13,7 @@ mod version;
 mod waitlist;
 
 use components::logo::ThermiteMarkDefs;
+use components::meta::ShareMeta;
 use components::toast::{ToastManager, ToastProvider};
 use models::user::LoggedInData;
 
@@ -280,6 +281,8 @@ fn App() -> Element {
         document::Meta { name: "apple-mobile-web-app-capable", content: "yes" }
         document::Meta { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" }
         document::Meta { name: "apple-mobile-web-app-title", content: "Thermite" }
+        // The share card every URL previews with (see components::meta).
+        ShareMeta {}
         document::Script { {THEME_BOOTSTRAP_JS} }
         document::Script { {SW_REGISTER_JS} }
         // The shared gradient defs every ThermiteMark references; must sit outside the

@@ -3,6 +3,7 @@ pub mod copy_dsn;
 pub mod dashboard_shell;
 pub mod footer;
 pub mod logo;
+pub mod meta;
 pub mod navbar;
 pub mod sparkline;
 pub mod theme_toggle;

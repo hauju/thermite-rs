@@ -6,6 +6,7 @@ use dioxus::prelude::*;
 use dioxus_free_icons::Icon;
 use dioxus_free_icons::icons::ld_icons::LdArrowLeft;
 
+use crate::components::meta::PageMeta;
 use crate::routes::Route;
 
 const IMPRINT_HTML: &str = include_str!(concat!(env!("OUT_DIR"), "/imprint.html"));
@@ -70,9 +71,11 @@ fn LegalDocument(
     html: &'static str,
 ) -> Element {
     rsx! {
-        document::Title { "{title}" }
-        document::Meta { name: "description", content: description }
-        document::Link { rel: "canonical", href: "https://thermite.rs{path}" }
+        PageMeta {
+            title: title.to_string(),
+            description: description.to_string(),
+            path: path.to_string(),
+        }
 
         div { class: "container mx-auto max-w-3xl px-4 pt-10 pb-20",
             Link {

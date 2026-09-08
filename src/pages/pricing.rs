@@ -1,8 +1,11 @@
 use dioxus::prelude::*;
 use dioxus_free_icons::{Icon, icons::ld_icons::*};
 
+use crate::components::meta::{JsonLd, PageMeta, offer, software_application};
 use crate::routes::Route;
 use crate::waitlist::{WaitlistForm, waitlist_open};
+
+const DESCRIPTION: &str = "Priced by errors, not by seats. Every plan includes the full triage loop, the MCP server and the REST API; only the volume you send changes.";
 
 /// The volumes the slider snaps to. Tiered pricing gets a tiered control: a continuous slider
 /// would promise a price for 37,000 errors that no plan has.
@@ -50,6 +53,19 @@ pub fn Pricing() -> Element {
     let team_cta = if beyond { "Talk to us" } else { "Start free" };
 
     rsx! {
+        PageMeta {
+            title: "Pricing — Thermite",
+            description: DESCRIPTION,
+            path: "/pricing",
+        }
+        // The same three plans as the cards below; keep the two in step.
+        JsonLd {
+            data: software_application("/pricing", DESCRIPTION, serde_json::json!([
+                offer("Free", "0", "1,000 errors / month"),
+                offer("Pro", "19", "100,000 errors / month"),
+                offer("Team", "49", "1,000,000 errors / month"),
+            ])),
+        }
         section { class: "relative overflow-hidden",
             div { class: "landing-hero-glow" }
             div { class: "landing-hero-grid" }

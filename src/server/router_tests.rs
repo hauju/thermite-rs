@@ -88,6 +88,227 @@ async fn llms_txt_is_served_without_authentication(pool: PgPool) {
         body.contains("claim_triage"),
         "must describe the triage loop"
     );
+    assert!(
+        body.contains("http://localhost:8099/llms-full.txt")
+            && body.contains("http://localhost:8099/docs/getting-started/introduction.md"),
+        "must point at the docs as Markdown:\n{body}"
+    );
+}
+
+/// The docs are readable without rendering them: each page as Markdown, and all of them as
+/// one file — the same content the pages are built from.
+#[sqlx::test]
+async fn docs_are_served_as_markdown(pool: PgPool) {
+    let base = serve(pool).await;
+    let page = client()
+        .get(format!("{base}/docs/getting-started/introduction.md"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(page.status(), 200);
+    assert_eq!(
+        page.headers()["content-type"],
+        "text/markdown; charset=utf-8"
+    );
+    let page = page.text().await.unwrap();
+    assert!(page.contains("Thermite"), "{page}");
+
+    let full = client()
+        .get(format!("{base}/llms-full.txt"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(full.status(), 200);
+    let full = full.text().await.unwrap();
+    assert!(
+        full.contains("http://localhost:8099/docs/getting-started/introduction"),
+        "{full}"
+    );
+    assert!(full.contains(&page), "the full file carries every page");
+}
+
+/// The share card is public, and the file is the size the tags declare: a scraper lays the
+/// card out from `og:image:width` / `height` before fetching, and a mismatch shows no image.
+#[sqlx::test]
+async fn share_card_is_served_at_its_declared_size(pool: PgPool) {
+    use crate::components::meta::{SHARE_IMAGE_HEIGHT, SHARE_IMAGE_WIDTH};
+
+    let base = serve(pool).await;
+    let res = client().get(format!("{base}/og.png")).send().await.unwrap();
+    assert_eq!(res.status(), 200);
+    assert_eq!(res.headers()["content-type"], "image/png");
+    assert_eq!(
+        res.headers()["cache-control"],
+        "public, max-age=31536000, immutable",
+        "the tags version the URL, so the file itself never changes"
+    );
+    let png = res.bytes().await.unwrap();
+    assert_eq!(png_size(&png), (SHARE_IMAGE_WIDTH, SHARE_IMAGE_HEIGHT));
+}
+
+/// The demo instance serves its own card at the same URL, so the tags never have to know
+/// which instance they are on.
+#[sqlx::test]
+async fn the_demo_instance_serves_the_demo_card(pool: PgPool) {
+    use crate::components::meta::{SHARE_IMAGE_HEIGHT, SHARE_IMAGE_WIDTH};
+
+    let plain = serve(pool.clone()).await;
+    let demo = serve_with_state(pool, Router::new(), |state| {
+        state.config.demo_autologin = true;
+    })
+    .await;
+    let card = |base: String| async move {
+        let res = client().get(format!("{base}/og.png")).send().await.unwrap();
+        assert_eq!(res.status(), 200);
+        res.bytes().await.unwrap()
+    };
+    let (plain, demo) = (card(plain).await, card(demo).await);
+    assert_eq!(png_size(&demo), (SHARE_IMAGE_WIDTH, SHARE_IMAGE_HEIGHT));
+    assert_ne!(plain, demo, "the demo instance must serve the demo card");
+}
+
+/// A stand-in for the SSR shell on routes the tests own, so the outbound middleware can be
+/// exercised against a real page response.
+fn shell_routes() -> Router {
+    let page =
+        || async { axum::response::Html("<!DOCTYPE html><html><head></head><body></body></html>") };
+    Router::new()
+        .route("/pricing", axum::routing::get(page))
+        .route("/dashboard", axum::routing::get(page))
+}
+
+/// `robots.txt` keeps crawlers off the machine endpoints and points at the sitemap, which
+/// lists the public pages and the docs — and never an application page.
+#[sqlx::test]
+async fn robots_and_sitemap_cover_the_public_pages_only(pool: PgPool) {
+    let base = serve(pool).await;
+    let robots = client()
+        .get(format!("{base}/robots.txt"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(robots.status(), 200);
+    let robots = robots.text().await.unwrap();
+    assert!(
+        robots.contains("Sitemap: http://localhost:8099/sitemap.xml"),
+        "{robots}"
+    );
+    assert!(robots.contains("Disallow: /api/"));
+    assert!(
+        !robots.contains("Disallow: /dashboard"),
+        "app pages are noindex, never disallowed: link previews must still fetch them"
+    );
+
+    let sitemap = client()
+        .get(format!("{base}/sitemap.xml"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(sitemap.status(), 200);
+    assert_eq!(
+        sitemap.headers()["content-type"],
+        "application/xml; charset=utf-8"
+    );
+    let sitemap = sitemap.text().await.unwrap();
+    for loc in [
+        "http://localhost:8099/",
+        "http://localhost:8099/pricing",
+        "http://localhost:8099/docs/getting-started/introduction",
+    ] {
+        assert!(
+            sitemap.contains(&format!("<loc>{loc}</loc>")),
+            "{loc}:\n{sitemap}"
+        );
+    }
+    assert!(!sitemap.contains("/dashboard"));
+}
+
+/// The application pages say `noindex` themselves; the marketing pages do not.
+#[sqlx::test]
+async fn application_pages_are_noindex_and_marketing_pages_are_not(pool: PgPool) {
+    let base = serve_with_state(pool, shell_routes(), |_| {}).await;
+    let dashboard = client()
+        .get(format!("{base}/dashboard"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(dashboard.headers()["x-robots-tag"], "noindex");
+    let pricing = client()
+        .get(format!("{base}/pricing"))
+        .send()
+        .await
+        .unwrap();
+    assert!(pricing.headers().get("x-robots-tag").is_none());
+}
+
+/// The demo instance duplicates every marketing page, so all of it is `noindex` and it
+/// advertises no sitemap — while still answering, so its links keep unfurling.
+#[sqlx::test]
+async fn the_demo_instance_is_noindex_everywhere(pool: PgPool) {
+    let base = serve_with_state(pool, shell_routes(), |state| {
+        state.config.demo_autologin = true;
+    })
+    .await;
+    let pricing = client()
+        .get(format!("{base}/pricing"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(pricing.status(), 200);
+    assert_eq!(pricing.headers()["x-robots-tag"], "noindex");
+    let robots = client()
+        .get(format!("{base}/robots.txt"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(!robots.contains("Sitemap:"), "{robots}");
+    let sitemap = client()
+        .get(format!("{base}/sitemap.xml"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        sitemap.status(),
+        404,
+        "a sitemap of noindex URLs is a contradiction"
+    );
+}
+
+/// The SSR shell leaves `<html>` bare; the page goes out with a language, and nothing else
+/// is touched.
+#[sqlx::test]
+async fn the_ssr_shell_gets_a_language(pool: PgPool) {
+    let base = serve_with_state(pool, shell_routes(), |_| {}).await;
+    let page = client()
+        .get(format!("{base}/pricing"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(page.status(), 200);
+    let html = page.text().await.unwrap();
+    assert!(
+        html.starts_with("<!DOCTYPE html><html lang=\"en\">"),
+        "{html}"
+    );
+    let robots = client()
+        .get(format!("{base}/robots.txt"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(robots.starts_with("User-agent: *"), "{robots}");
+}
+
+/// Width and height from the PNG header: IHDR is always the first chunk.
+fn png_size(png: &[u8]) -> (u32, u32) {
+    assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n", "not a PNG");
+    let be = |at: usize| u32::from_be_bytes(png[at..at + 4].try_into().unwrap());
+    (be(16), be(20))
 }
 
 /// The split that keeps an error storm from restarting the container: the Docker

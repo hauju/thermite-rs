@@ -8,6 +8,7 @@ use dioxus_free_icons::icons::ld_icons::LdMenu;
 use std::sync::LazyLock;
 
 use crate::components::logo::ThermiteMark;
+use crate::components::meta::{PageMeta, SITE_DESCRIPTION};
 use crate::routes::Route;
 
 // ============================================================================
@@ -16,7 +17,7 @@ use crate::routes::Route;
 
 dioxus_docs_kit::doc_content_map!();
 
-static DOCS: LazyLock<DocsRegistry> = LazyLock::new(|| {
+pub static DOCS: LazyLock<DocsRegistry> = LazyLock::new(|| {
     DocsConfig::new(include_str!("../../docs/_nav.json"), doc_content_map())
         .with_default_path("getting-started/introduction")
         .build()
@@ -37,7 +38,7 @@ pub fn DocsShell() -> Element {
         _ => String::new(),
     });
 
-    let docs_ctx = DocsContext::new(
+    let mut docs_ctx = DocsContext::new(
         current_path,
         "/docs",
         Callback::new(move |path: String| {
@@ -45,6 +46,11 @@ pub fn DocsShell() -> Element {
             nav.push(Route::DocsPage { slug });
         }),
     );
+    // The kit's own head tags are off: it writes a second `og:type` and a `twitter:card` of
+    // `summary` beside the root's, and cannot emit a canonical without an origin the client
+    // does not have. `DocsPage` writes the page tags from the same registry instead; what that
+    // forgoes is the kit's `TechArticle` JSON-LD.
+    docs_ctx.auto_meta = false;
 
     let providers = use_docs_providers(&DOCS, docs_ctx);
     let search_open = providers.search_open;
@@ -100,7 +106,24 @@ pub fn DocsShell() -> Element {
 /// Renders a documentation page based on the URL slug.
 #[component]
 pub fn DocsPage(slug: Vec<String>) -> Element {
+    let path = slug.join("/");
+    // Both sides hold the registry, so server and client agree on whether the tags exist.
+    let title = DOCS.get_page_title(&path);
     rsx! {
-        DocsPageContent { path: slug.join("/") }
+        if let Some(title) = title {
+            PageMeta {
+                title: format!("{title} — Thermite"),
+                // A page without a frontmatter description gets the site's rather than a blank
+                // subtitle under its card.
+                description: DOCS
+                    .get_page_description(&path)
+                    .unwrap_or_else(|| SITE_DESCRIPTION.to_string()),
+                path: format!("/docs/{path}"),
+            }
+            // The same page as Markdown (served by server::seo), for agents and "view as
+            // Markdown" tooling. Every page here has a source: there are no OpenAPI pages.
+            document::Link { rel: "alternate", r#type: "text/markdown", href: "/docs/{path}.md" }
+        }
+        DocsPageContent { path }
     }
 }

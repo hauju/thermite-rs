@@ -2,6 +2,7 @@ use dioxus::prelude::*;
 use dioxus_free_icons::{Icon, icons::ld_icons::*};
 
 use crate::components::logo::ThermiteMark;
+use crate::components::meta::{JsonLd, PageMeta, SITE_DESCRIPTION, offer, software_application};
 use crate::errors_data::demo_link;
 use crate::routes::Route;
 use crate::waitlist::{WaitlistForm, waitlist_open};
@@ -15,6 +16,12 @@ pub fn Home() -> Element {
     let waitlist = use_server_future(|| async { waitlist_open().await.unwrap_or(false) })?;
     let waitlist = waitlist() == Some(true);
     rsx! {
+        PageMeta {
+            title: "The error tracker your agent works in — Thermite",
+            description: SITE_DESCRIPTION,
+            path: "/",
+        }
+        JsonLd { data: software_application("/", SITE_DESCRIPTION, offer("Free", "0", "1,000 errors / month")) }
         section { class: "relative overflow-hidden",
             // Ambient hero backdrop: soft azure glow + masked guideline grid.
             div { class: "landing-hero-glow" }

@@ -8,6 +8,8 @@
 use axum::Router;
 use axum::routing::get;
 
+use crate::pages::docs::DOCS;
+
 const LLMS_TXT: &str = "\
 # Thermite
 
@@ -49,6 +51,22 @@ Point any Sentry SDK at the DSN returned by create_project — no SDK changes ne
 health, and cron check-ins to monitor scheduled jobs.
 ";
 
-pub fn llms_router() -> Router {
-    Router::new().route("/llms.txt", get(|| async { LLMS_TXT }))
+pub fn llms_router(origin: &str) -> Router {
+    let text = llms_txt(origin);
+    Router::new().route("/llms.txt", get(move || async move { text }))
+}
+
+/// The orientation page, followed by the docs as Markdown an agent can fetch directly (served
+/// by `server::seo`): every page in navigation order, and the whole set as one file.
+fn llms_txt(origin: &str) -> String {
+    let origin = origin.trim_end_matches('/');
+    let mut out = format!(
+        "{LLMS_TXT}\n## Documentation\n\nEvery page as Markdown, or all of it at once: \
+         {origin}/llms-full.txt\n\n"
+    );
+    for path in DOCS.nav.groups.iter().flat_map(|group| &group.pages) {
+        let title = DOCS.get_page_title(path).unwrap_or_else(|| path.clone());
+        out.push_str(&format!("- [{title}]({origin}/docs/{path}.md)\n"));
+    }
+    out
 }
