@@ -76,6 +76,8 @@ def nightly_import():
 
 A missed or overrunning run becomes an ordinary error event — same grouping, same alerts, same
 triage queue as an exception. Cron monitoring is a new source of events, not a second pipeline.
+See [Cron monitoring](/docs/guides/cron) for the schedule options, the failure modes, and how to
+check in from a job with no SDK.
 
 ## JavaScript and TypeScript
 
@@ -201,7 +203,7 @@ the whole envelope, and the event ids it already delivered deduplicate on the wa
   <Card title="Introduction" icon="book-open" href="/docs/getting-started/introduction">
     How the triage loop hands work to your coding agent.
   </Card>
-  <Card title="Authentication" icon="lock" href="/docs/guides/authentication">
-    API keys for agents and the OIDC login for humans.
+  <Card title="Connect an agent" icon="bot" href="/docs/guides/mcp">
+    Hand the issues your SDK reports to a coding agent.
   </Card>
 </CardGroup>

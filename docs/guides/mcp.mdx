@@ -1,0 +1,186 @@
+---
+title: Connect an agent (MCP)
+description: One endpoint, two connectors — wire Claude Code or claude.ai to Thermite and let it work the triage queue
+sidebarTitle: MCP
+---
+
+## One endpoint
+
+`POST /mcp` is a Model Context Protocol server over Streamable HTTP. It serves the same data the
+dashboard does — the exception chain, every stack frame with source context, breadcrumbs, contexts
+— shaped so an agent diagnoses a bug in one call instead of walking a resource tree.
+
+There is nothing to install and nothing to run beside Thermite: the MCP server is part of the
+binary, at `BASE_URL/mcp`.
+
+<Note>
+`BASE_URL` must be the public origin. It is the OAuth issuer advertised to clients *and* the source
+of the `Host` allowlist the MCP layer validates against, so a wrong value fails both connectors at
+once — see [Self-hosting](/docs/getting-started/self-hosting#behind-a-reverse-proxy).
+</Note>
+
+## Claude Code
+
+<Steps>
+  <Step title="Mint an API key">
+    **Settings → API keys** in the dashboard. The token is shown once, is prefixed `oat_`, and only
+    a hash is stored.
+  </Step>
+  <Step title="Add the server">
+    ```bash
+    claude mcp add --transport http thermite https://errors.example.com/mcp \
+      --header "Authorization: Bearer oat_..."
+    ```
+
+    `X-API-Key: oat_...` works in place of the bearer header if your client prefers it.
+  </Step>
+  <Step title="Check it answers">
+    ```bash
+    claude mcp list
+    ```
+
+    Then ask for something read-only — "list my Thermite projects" — before pointing an agent at
+    the triage queue.
+  </Step>
+</Steps>
+
+## claude.ai
+
+claude.ai cannot hold a pre-shared key, so Thermite is also an OAuth authorization server for its
+own MCP endpoint. Add a custom connector pointing at `https://errors.example.com/mcp` and the flow
+runs itself: the unauthenticated request comes back `401` with a `WWW-Authenticate` header, the
+client discovers the metadata, registers itself, and sends you to Thermite's own login and consent
+screen.
+
+The token it receives is an ordinary `oat_` key named after the client that asked for it, so it
+appears in **Settings → API keys** like any other and revoking the right one is reading rather than
+guesswork.
+
+<Warning>
+The consent screen names the redirect target and flags a client you have never approved before.
+Read it. A connector you did not just add asking for access is the one case where a moment's
+attention matters.
+</Warning>
+
+## The triage loop
+
+This is what the MCP surface exists for. An agent claims work, diagnoses it against the revision
+that actually crashed, writes its findings back, and acknowledges the item.
+
+<Steps>
+  <Step title="claim_triage">
+    Takes issues off the queue. The claim is a **lease**, not a flag — claimed items are hidden
+    from other agents until it expires (default 900 seconds), so a loop firing every 10 minutes
+    while a run takes 12 does not re-diagnose the same bug, and an agent that dies releases its
+    work.
+
+    Each item carries the `release` the error came from. When that is a git SHA, check out that
+    revision first: diagnosing against `main` produces confident, wrong answers.
+  </Step>
+  <Step title="get_issue">
+    One call returns everything — exception chain, stack frames with source context, breadcrumbs,
+    runtime contexts, and any analysis another agent already posted.
+
+    For a regression it also carries `regressed_from_release`, the release the fix was verified
+    against. `git diff <regressed_from_release>..<release>` is the change set that reintroduced the
+    bug.
+  </Step>
+  <Step title="post_analysis">
+    Writes the diagnosis onto the issue: `summary`, `details`, `suggested_fix`, `confidence`
+    (`high` / `medium` / `low` — say low rather than guessing confidently) and the `release` it was
+    reasoned against. Without this the work is lost when the run ends.
+  </Step>
+  <Step title="ack_triage">
+    Marks the item done so it is not handed out again. Idempotent.
+  </Step>
+</Steps>
+
+### Handing back a pull request
+
+Triage does not have to stop at a diagnosis. Give the project a **repository URL** in its settings
+and it rides along on every triage item and `get_issue`. An agent that opens a pull request passes
+the link back as `fix_url` on `post_analysis`, and the issue page renders it as the reviewer's one
+action.
+
+<Note>
+**Thermite holds no git credential and never calls the forge.** It stores a link, and `fix_url`
+must share a host with the project's `repo_url`. Opening the pull request is the agent's job — an
+error tracker with write access to the repositories it watches turns every ingest bug into a path
+to your source.
+</Note>
+
+Do not resolve the issue along with the fix. Resolving anchors the issue to a release; doing that
+against an unmerged pull request makes the next event from the still-broken deploy read as a
+regression. Resolve after it ships, with `set_issue_status(status="resolved",
+in_next_release=true)`.
+
+### The scoreboard
+
+`fix_record` grades every proposed fix against production, per `source`, so an agent can read its
+own hold rate before trusting its own confidence:
+
+| Verdict | Meaning |
+| --- | --- |
+| `pending` | Nothing has shipped since the fix was proposed. Not a win yet. |
+| `held` | Releases shipped afterwards and the issue appeared in none of them. |
+| `regressed` | The issue came back in a release first seen after the fix. |
+
+`hold_rate` is null until something settles — a rate over zero samples reads as a fact while
+measuring nothing.
+
+<Tip>
+**A human can answer back.** The issue page has a note form, and notes come through `get_issue`
+beside the machine findings with the person's name as the source. "Not the cache, the retry loop"
+from someone who knows the system is worth more than another pass over the stack trace.
+</Tip>
+
+## Tools
+
+| Tool | What it does |
+| --- | --- |
+| `list_projects` | Projects with unresolved counts and 24-hour volume |
+| `create_project` | Creates a project and returns its DSN |
+| `list_issues` | Issues in a project; `sort=events` / `sort=users`, filter by `environment` or `tag=key:value` |
+| `get_issue` | One issue in full: stack frames with source context, breadcrumbs, contexts, prior analyses |
+| `get_event` | One event by the id the SDK assigned it — the id that appears in your logs |
+| `project_stats` | Error rate over time, unresolved, new and regressed counts |
+| `release_health` | Sessions and crash-free rate per release |
+| `list_monitors` | Cron monitors and their current status — see [Cron monitoring](/docs/guides/cron) |
+| `pending_triage` | What is waiting, without taking it |
+| `claim_triage` | Take work off the queue under a lease |
+| `ack_triage` | Mark a claimed item done |
+| `post_analysis` | Write a diagnosis (and optionally `fix_url`) onto an issue |
+| `fix_record` | How proposed fixes fared in production, per agent |
+| `set_issue_status` | Resolve, ignore or reopen |
+
+## REST, for everything else
+
+The same operations are served under `/api/v1` with the same `Authorization` header — for example
+`GET /api/v1/projects`, `/api/v1/projects/{slug}/issues` and `/api/v1/triage/pending`. Useful for
+scripts and CI, where an MCP client would be the heavier dependency.
+
+<Tip>
+`GET /llms.txt` on any instance is an unauthenticated orientation page for agents: what Thermite
+is, where `/mcp` lives, how to authenticate, and the triage loop in a form a model can act on.
+Point an agent at it before writing instructions of your own.
+</Tip>
+
+## When it does not connect
+
+| Symptom | Cause |
+| --- | --- |
+| `401` on every call | The key is wrong, revoked, or the header never arrived. In local sign-in mode a bearer **JWT** is always rejected — there is no issuer whose signature would mean anything, so use an `oat_` key. |
+| The claude.ai connector never reaches consent | `BASE_URL` does not match the public origin, so discovery advertises an issuer the browser cannot reach. |
+| Requests fail with a host error | Same cause: the `Host` allowlist is derived from `BASE_URL`, and it rejects what it was not told about. |
+| Tools return an error message instead of failing | That is deliberate. A tool that ran and could not do the job answers with the reason so the agent can correct itself; only auth and infrastructure faults are protocol errors. |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Cron monitoring" icon="clock" href="/docs/guides/cron">
+    Scheduled jobs that report in, and become issues when they do not.
+  </Card>
+  <Card title="Authentication" icon="lock" href="/docs/guides/authentication">
+    Where `oat_` keys, the OAuth flow and DSN keys differ.
+  </Card>
+</CardGroup>

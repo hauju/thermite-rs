@@ -1,0 +1,139 @@
+---
+title: Cron monitoring
+description: Scheduled jobs check in through the same DSN — a missed or overrunning run becomes an ordinary error event
+sidebarTitle: Cron monitoring
+---
+
+## A job that does not run is an error
+
+Thermite implements Sentry's check-in protocol. Your job reports when it starts and when it
+finishes, through the **same DSN** it already reports errors with, and Thermite raises an event
+when a run goes missing or overruns.
+
+That event is an ordinary error event: it groups into an issue, triggers the same alerts, queues
+the same triage work and obeys the same retention. Cron monitoring is a new *source* of events,
+not a second pipeline with its own rules to learn.
+
+<Note>
+**The monitor creates itself.** It is born from the `monitor_config` on the first check-in that
+carries one, so the schedule lives next to the job it describes. There is nothing to configure in
+the dashboard, and nothing to keep in step when the schedule changes.
+</Note>
+
+## Python
+
+```python
+from sentry_sdk.crons import monitor
+
+@monitor(
+    monitor_slug="nightly-import",
+    monitor_config={
+        "schedule": {"type": "crontab", "value": "0 3 * * *"},
+        "timezone": "Europe/Berlin",
+        "checkin_margin": 5,   # minutes late before the run counts as missed
+        "max_runtime": 30,     # minutes running before it counts as overrunning
+    },
+)
+def nightly_import():
+    ...
+```
+
+The decorator sends `in_progress` when the function is entered and `ok` or `error` when it returns
+or raises. Celery, APScheduler and the other schedulers `sentry-sdk` integrates with can report the
+same way.
+
+## Any language, any runner
+
+A check-in is one envelope item, so a shell job can send it with `curl` and no SDK at all:
+
+```bash
+DSN_KEY=<public_key>
+HOST=errors.example.com
+PROJECT=1
+
+checkin() {
+  printf '%s\n%s\n%s\n' \
+    '{}' \
+    '{"type":"check_in"}' \
+    "{\"check_in_id\":\"$2\",\"monitor_slug\":\"nightly-import\",\"status\":\"$1\",\"monitor_config\":{\"schedule\":{\"type\":\"crontab\",\"value\":\"0 3 * * *\"},\"timezone\":\"Europe/Berlin\"}}" \
+  | curl -sS -X POST "https://$HOST/api/$PROJECT/envelope/?sentry_key=$DSN_KEY" --data-binary @-
+}
+
+ID=$(uuidgen | tr 'A-Z' 'a-z' | tr -d -)
+checkin in_progress "$ID"
+./import.sh && checkin ok "$ID" || checkin error "$ID"
+```
+
+The three lines are the envelope header, the item header and the item payload — the same shape
+every Sentry SDK sends. Reuse one `check_in_id` across the pair so the closing check-in is matched
+to the run it closes.
+
+<Tip>
+Sending only the closing `ok` is enough to keep a monitor healthy. The `in_progress` half is what
+makes an overrunning run detectable, so a job that can hang is worth the extra line.
+</Tip>
+
+## Schedules
+
+| Field | Meaning | Default |
+| --- | --- | --- |
+| `schedule` | `{"type": "crontab", "value": "0 3 * * *"}` or `{"type": "interval", "value": 15, "unit": "minute"}` | — |
+| `timezone` | IANA name, crontab schedules only | `UTC` |
+| `checkin_margin` | Minutes late before a missing run is reported | `5` |
+| `max_runtime` | Minutes an open run may last before it counts as a timeout | `60` |
+
+Crontab expressions are five fields and are evaluated **in the monitor's timezone**, because cron
+is wall-clock: `0 3 * * *` in Berlin is not 03:00 UTC. An unknown timezone name falls back to UTC
+rather than failing — a typo should shift the window, not silence the monitor. Interval schedules
+count from the last check-in, and their `unit` may be `minute`, `hour`, `day`, `week` or `month`.
+
+<Warning>
+**A check-in with no schedule that names no existing monitor creates nothing.** With no schedule
+there is nothing to be late for, so the row could never alert — it would be junk that looks like
+coverage. Send `monitor_config` at least once.
+</Warning>
+
+## What failure looks like
+
+A sweep runs every minute. When a monitor is past due by more than its margin, or a run has been
+open longer than `max_runtime`, Thermite raises a synthetic error event with an explicit
+fingerprint:
+
+```
+monitor:<slug>:missed     — the run never started
+monitor:<slug>:timeout    — the run started and never reported back
+```
+
+Those are two different bugs, so they stay two different issues, and a job broken for a week is one
+issue rather than seven. From there it is an ordinary issue: alerts fire, triage queues it, and an
+agent working the queue sees it beside the exceptions.
+
+<Note>
+The sweep advances the window past a failure it has reported, so the **next** missed run is
+reported too rather than the monitor going quiet after one alert. A successful check-in clears the
+flag and re-arms it.
+</Note>
+
+## Where to see it
+
+The project page carries a **Cron monitors** panel — each job's schedule, timezone, last check-in
+and current status (`ok`, `error`, `missed`, `timeout`, or `pending` before the first run). Agents
+read the same thing through the `list_monitors` tool over [MCP](/docs/guides/mcp), and scripts
+through `GET /api/v1/projects/{slug}/monitors` — both answer "are my scheduled jobs healthy"
+before a missed run has to.
+
+<Tip>
+**Check-ins cost no quota.** The per-project ingest quota is charged per event item, so a job
+reporting every five minutes never eats the budget its errors need.
+</Tip>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="SDKs" icon="plug" href="/docs/guides/sdks">
+    Per-language setup and what Thermite does with each envelope item.
+  </Card>
+  <Card title="Connect an agent" icon="bot" href="/docs/guides/mcp">
+    Let an agent work the issues these monitors raise.
+  </Card>
+</CardGroup>
