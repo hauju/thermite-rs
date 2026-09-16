@@ -462,8 +462,8 @@ hosted signup, not the product.
 
 **The marketing site is a flag, and it is off.** `THERMITE_SITE` decides whether this instance
 is thermite.rs or just the application. Unset — what the published image ships — `/` is a `302`
-to `/dashboard`, and `/pricing` and `/legal/*` are a plain `404`: the legal pages are Hauke's,
-not a self-hoster's, and nobody links the other two on an instance that is not selling anything.
+to `/dashboard`, and `/about`, `/pricing` and `/legal/*` are a plain `404`: the legal pages are Hauke's,
+not a self-hoster's, and nobody links the other three on an instance that is not selling anything.
 The docs stay on every instance, `.md` twins, `/llms.txt` and `/llms-full.txt` included — a
 self-hoster needs the SDK, MCP and cron pages — and `sitemap.xml` then lists only those, since
 the marketing entries would point at the 404s. It is enforced in `router::build`

@@ -250,7 +250,7 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
 enum Blocked {
     /// `/`: the application's front door, since that is all this instance is.
     Redirect,
-    /// Pricing and the legal pages — Hauke's, not a self-hoster's, and nothing here links to
+    /// About, pricing and the legal pages — Hauke's, not a self-hoster's, and nothing here links to
     /// them once the site is off.
     NotFound,
 }
@@ -260,7 +260,7 @@ enum Blocked {
 fn site_route(path: &str) -> Option<Blocked> {
     match path {
         "/" => Some(Blocked::Redirect),
-        "/pricing" => Some(Blocked::NotFound),
+        "/about" | "/pricing" => Some(Blocked::NotFound),
         _ if path.starts_with("/legal/") => Some(Blocked::NotFound),
         _ => None,
     }

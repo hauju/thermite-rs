@@ -1,3 +1,4 @@
+pub mod about;
 pub mod dashboard;
 pub mod docs;
 pub mod home;

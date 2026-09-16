@@ -2,6 +2,7 @@ use dioxus::prelude::*;
 
 use crate::components::dashboard_shell::DashboardShell;
 use crate::components::navbar::Navbar;
+use crate::pages::about::About;
 use crate::pages::dashboard::Dashboard;
 use crate::pages::docs::{DocsPage, DocsShell};
 use crate::pages::home::Home;
@@ -21,6 +22,8 @@ pub enum Route {
     #[layout(Navbar)]
         #[route("/")]
         Home {},
+        #[route("/about")]
+        About {},
         #[route("/pricing")]
         Pricing {},
         #[route("/legal/imprint")]

@@ -31,6 +31,7 @@ pub fn Footer() -> Element {
                     FooterColumn {
                         title: "PRODUCT",
                         links: vec![
+                            FooterLink { label: "About".into(), href: FooterHref::Internal(Route::About {}) },
                             FooterLink { label: "Pricing".into(), href: FooterHref::Internal(Route::Pricing {}) },
                             FooterLink { label: "Dashboard".into(), href: FooterHref::Internal(Route::Dashboard {}) },
                             FooterLink { label: "Projects".into(), href: FooterHref::Internal(Route::Projects {}) },

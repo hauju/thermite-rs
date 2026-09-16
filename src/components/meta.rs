@@ -106,6 +106,36 @@ pub fn software_application(
     })
 }
 
+/// The founder as schema.org describes a person, for the about page. The `sameAs` links are
+/// the ones `software_application` names as author, so the two resolve to one person.
+pub fn person(path: &str) -> serde_json::Value {
+    let origin = origin();
+    serde_json::json!({
+        "@context": "https://schema.org",
+        "@type": "Person",
+        "@id": format!("{origin}/#hauke-jung"),
+        "name": "Hauke Jung",
+        "jobTitle": "Founder",
+        "url": format!("{origin}{path}"),
+        "mainEntityOfPage": format!("{origin}{path}"),
+        "email": "mail@haukejung.de",
+        "description": "Full-stack developer in Germany, creator of Thermite, the Sentry-compatible error tracker that hands every issue to a coding agent.",
+        "knowsAbout": [
+            "Error tracking",
+            "Rust",
+            "Model Context Protocol",
+            "Full-stack web development",
+            "Self-hosted software",
+        ],
+        "worksFor": { "@type": "Organization", "name": "Thermite", "url": origin },
+        "sameAs": [
+            "https://github.com/hauju",
+            "https://x.com/haukejung",
+            "https://www.linkedin.com/in/haukejung/",
+        ],
+    })
+}
+
 /// A plan as an `Offer`. The price specification is what makes it monthly: a bare `price` reads
 /// as a one-off purchase.
 pub fn offer(name: &str, price: &str, volume: &str) -> serde_json::Value {

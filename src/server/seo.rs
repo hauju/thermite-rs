@@ -29,6 +29,7 @@ const MARKDOWN: &str = "text/markdown; charset=utf-8";
 /// the sitemap the moment it is in the navigation.
 const PUBLIC_PAGES: &[&str] = &[
     "/",
+    "/about",
     "/pricing",
     "/legal/imprint",
     "/legal/privacy",
@@ -303,6 +304,7 @@ mod tests {
         assert!(with_site.contains("<loc>https://thermite.rs/pricing</loc>"));
 
         let docs_only = sitemap_xml("https://errors.example.com", false);
+        assert!(!docs_only.contains("/about"), "{docs_only}");
         assert!(!docs_only.contains("/pricing"), "{docs_only}");
         assert!(!docs_only.contains("/legal/"), "{docs_only}");
         assert!(

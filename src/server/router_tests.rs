@@ -174,6 +174,7 @@ fn shell_routes() -> Router {
         || async { axum::response::Html("<!DOCTYPE html><html><head></head><body></body></html>") };
     Router::new()
         .route("/", axum::routing::get(page))
+        .route("/about", axum::routing::get(page))
         .route("/pricing", axum::routing::get(page))
         .route("/legal/privacy", axum::routing::get(page))
         .route(
@@ -183,11 +184,12 @@ fn shell_routes() -> Router {
         .route("/dashboard", axum::routing::get(page))
 }
 
-/// The marketing site is three paths and nothing else: the docs, the application pages and the
+/// The marketing site is four paths and nothing else: the docs, the application pages and the
 /// machine endpoints are the product, and a self-hoster keeps all of them.
 #[test]
 fn only_the_marketing_paths_belong_to_the_site() {
     assert_eq!(site_route("/"), Some(Blocked::Redirect));
+    assert_eq!(site_route("/about"), Some(Blocked::NotFound));
     assert_eq!(site_route("/pricing"), Some(Blocked::NotFound));
     assert_eq!(site_route("/legal/privacy"), Some(Blocked::NotFound));
     for path in [
@@ -196,6 +198,7 @@ fn only_the_marketing_paths_belong_to_the_site() {
         "/llms.txt",
         "/api/1/envelope/",
         "/pricing/enterprise",
+        "/aboutus",
         "/legalese",
     ] {
         assert_eq!(site_route(path), None, "{path}");
@@ -213,7 +216,7 @@ async fn without_the_site_flag_the_instance_is_only_the_application(pool: PgPool
     assert_eq!(root.status(), 302);
     assert_eq!(root.headers()["location"], "/dashboard");
 
-    for path in ["/pricing", "/legal/privacy"] {
+    for path in ["/about", "/pricing", "/legal/privacy"] {
         let res = client().get(format!("{base}{path}")).send().await.unwrap();
         assert_eq!(res.status(), 404, "{path}");
     }
@@ -233,6 +236,7 @@ async fn without_the_site_flag_the_instance_is_only_the_application(pool: PgPool
         .text()
         .await
         .unwrap();
+    assert!(!sitemap.contains("/about"), "{sitemap}");
     assert!(!sitemap.contains("/pricing"), "{sitemap}");
     assert!(!sitemap.contains("/legal/"), "{sitemap}");
     assert!(
@@ -245,7 +249,7 @@ async fn without_the_site_flag_the_instance_is_only_the_application(pool: PgPool
 #[sqlx::test]
 async fn the_site_flag_serves_the_marketing_pages(pool: PgPool) {
     let base = serve_with_state(pool, shell_routes(), |state| state.config.site = true).await;
-    for path in ["/", "/pricing", "/legal/privacy"] {
+    for path in ["/", "/about", "/pricing", "/legal/privacy"] {
         let res = client().get(format!("{base}{path}")).send().await.unwrap();
         assert_eq!(res.status(), 200, "{path}");
     }
@@ -258,7 +262,11 @@ async fn the_site_flag_serves_the_marketing_pages(pool: PgPool) {
         .text()
         .await
         .unwrap();
-    for loc in ["http://localhost:8099/", "http://localhost:8099/pricing"] {
+    for loc in [
+        "http://localhost:8099/",
+        "http://localhost:8099/about",
+        "http://localhost:8099/pricing",
+    ] {
         assert!(sitemap.contains(&format!("<loc>{loc}</loc>")), "{loc}");
     }
 }
