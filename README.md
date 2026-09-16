@@ -2,12 +2,20 @@
 
 [![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-2024_edition-orange.svg)](rust-toolchain.toml)
+[![Image](https://img.shields.io/badge/ghcr.io-hauju%2Fthermite-blue.svg)](https://github.com/hauju/thermite-rs/pkgs/container/thermite)
 
 Self-hosted, agent-native error tracking, written in Rust. Thermite speaks Sentry's wire
 protocol — point any unmodified Sentry SDK at it and errors group into issues in your own
 Postgres. Your coding agent triages them over MCP and leaves its diagnosis on the issue page.
 
-A hosted instance runs at **[thermite.rs](https://thermite.rs)**.
+**[Live demo](https://demo.thermite.rs/demo)** · **[Docs](https://thermite.rs/docs/getting-started/introduction)** · **[Self-hosting](https://thermite.rs/docs/getting-started/self-hosting)** · a hosted instance runs at **[thermite.rs](https://thermite.rs)**
+
+![Issue list](.github/images/issues.png)
+
+Everything to diagnose one bug in a single view — and a single API call. Stack frame with source
+context, breadcrumbs, tags, the user it hit, and the release it came from:
+
+![Stack trace, breadcrumbs and context](.github/images/stacktrace.png)
 
 Thermite is built for reading by an agent, not just by a human. `GET /api/v1/issues/{id}` returns
 the issue *and* its latest event in full — exception chain, every stack frame with source context,
