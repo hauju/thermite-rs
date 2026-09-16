@@ -9,6 +9,7 @@ use std::sync::LazyLock;
 
 use crate::components::logo::ThermiteMark;
 use crate::components::meta::{PageMeta, SITE_DESCRIPTION};
+use crate::errors_data::site_enabled;
 use crate::routes::Route;
 
 // ============================================================================
@@ -32,6 +33,9 @@ pub static DOCS: LazyLock<DocsRegistry> = LazyLock::new(|| {
 pub fn DocsShell() -> Element {
     let nav = use_navigator();
     let route = use_route::<Route>();
+    // The docs are served on every instance; the landing page is not. Both sides start at
+    // `None`, so the header hydrates unchanged.
+    let site = use_resource(|| async { site_enabled().await.unwrap_or(false) });
 
     let current_path = use_memo(move || match route.clone() {
         Route::DocsPage { slug } => slug.join("/"),
@@ -55,6 +59,12 @@ pub fn DocsShell() -> Element {
     let providers = use_docs_providers(&DOCS, docs_ctx);
     let search_open = providers.search_open;
     let mut drawer_open = providers.drawer_open;
+    // Where the mark goes: the landing page where there is one, the application otherwise.
+    let brand = if site() == Some(true) {
+        Route::Home {}
+    } else {
+        Route::Dashboard {}
+    };
 
     rsx! {
         DocsLayout {
@@ -67,7 +77,7 @@ pub fn DocsShell() -> Element {
                             Icon { class: "size-5", icon: LdMenu }
                         }
                         Link {
-                            to: Route::Home {},
+                            to: brand,
                             class: "inline-flex items-center gap-2 font-display text-xl font-semibold tracking-tight hover:opacity-80 transition-opacity",
                             ThermiteMark { size: 24 }
                             "Thermite"
@@ -75,11 +85,13 @@ pub fn DocsShell() -> Element {
                     }
                     div { class: "flex-none flex items-center gap-1",
                         ul { class: "menu menu-horizontal gap-1 hidden lg:flex",
-                            li {
-                                Link {
-                                    to: Route::Home {},
-                                    class: "btn btn-ghost btn-sm rounded-lg font-medium",
-                                    "Home"
+                            if site() == Some(true) {
+                                li {
+                                    Link {
+                                        to: Route::Home {},
+                                        class: "btn btn-ghost btn-sm rounded-lg font-medium",
+                                        "Home"
+                                    }
                                 }
                             }
                             li {

@@ -173,15 +173,101 @@ fn shell_routes() -> Router {
     let page =
         || async { axum::response::Html("<!DOCTYPE html><html><head></head><body></body></html>") };
     Router::new()
+        .route("/", axum::routing::get(page))
         .route("/pricing", axum::routing::get(page))
+        .route("/legal/privacy", axum::routing::get(page))
+        .route(
+            "/docs/getting-started/introduction",
+            axum::routing::get(page),
+        )
         .route("/dashboard", axum::routing::get(page))
+}
+
+/// The marketing site is three paths and nothing else: the docs, the application pages and the
+/// machine endpoints are the product, and a self-hoster keeps all of them.
+#[test]
+fn only_the_marketing_paths_belong_to_the_site() {
+    assert_eq!(site_route("/"), Some(Blocked::Redirect));
+    assert_eq!(site_route("/pricing"), Some(Blocked::NotFound));
+    assert_eq!(site_route("/legal/privacy"), Some(Blocked::NotFound));
+    for path in [
+        "/dashboard",
+        "/docs/getting-started/introduction",
+        "/llms.txt",
+        "/api/1/envelope/",
+        "/pricing/enterprise",
+        "/legalese",
+    ] {
+        assert_eq!(site_route(path), None, "{path}");
+    }
+}
+
+/// The published image is the application, not thermite.rs: without `THERMITE_SITE` the
+/// landing page is the dashboard's front door and the marketing pages are gone. The docs stay
+/// — a self-hoster needs the SDK, MCP and cron pages — and the sitemap lists only those, since
+/// the marketing entries would point at the 404 below.
+#[sqlx::test]
+async fn without_the_site_flag_the_instance_is_only_the_application(pool: PgPool) {
+    let base = serve_with_state(pool, shell_routes(), |_| {}).await;
+    let root = client().get(format!("{base}/")).send().await.unwrap();
+    assert_eq!(root.status(), 302);
+    assert_eq!(root.headers()["location"], "/dashboard");
+
+    for path in ["/pricing", "/legal/privacy"] {
+        let res = client().get(format!("{base}{path}")).send().await.unwrap();
+        assert_eq!(res.status(), 404, "{path}");
+    }
+
+    let docs = client()
+        .get(format!("{base}/docs/getting-started/introduction"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(docs.status(), 200, "the docs are the product, not the site");
+
+    let sitemap = client()
+        .get(format!("{base}/sitemap.xml"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(!sitemap.contains("/pricing"), "{sitemap}");
+    assert!(!sitemap.contains("/legal/"), "{sitemap}");
+    assert!(
+        sitemap.contains("<loc>http://localhost:8099/docs/getting-started/introduction</loc>"),
+        "{sitemap}"
+    );
+}
+
+/// With the flag set — thermite.rs and demo.thermite.rs — the whole site is there.
+#[sqlx::test]
+async fn the_site_flag_serves_the_marketing_pages(pool: PgPool) {
+    let base = serve_with_state(pool, shell_routes(), |state| state.config.site = true).await;
+    for path in ["/", "/pricing", "/legal/privacy"] {
+        let res = client().get(format!("{base}{path}")).send().await.unwrap();
+        assert_eq!(res.status(), 200, "{path}");
+    }
+
+    let sitemap = client()
+        .get(format!("{base}/sitemap.xml"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    for loc in ["http://localhost:8099/", "http://localhost:8099/pricing"] {
+        assert!(sitemap.contains(&format!("<loc>{loc}</loc>")), "{loc}");
+    }
 }
 
 /// `robots.txt` keeps crawlers off the machine endpoints and points at the sitemap, which
 /// lists the public pages and the docs — and never an application page.
 #[sqlx::test]
 async fn robots_and_sitemap_cover_the_public_pages_only(pool: PgPool) {
-    let base = serve(pool).await;
+    let base = serve_with_state(pool, Router::new(), |state| state.config.site = true).await;
     let robots = client()
         .get(format!("{base}/robots.txt"))
         .send()
@@ -226,7 +312,7 @@ async fn robots_and_sitemap_cover_the_public_pages_only(pool: PgPool) {
 /// The application pages say `noindex` themselves; the marketing pages do not.
 #[sqlx::test]
 async fn application_pages_are_noindex_and_marketing_pages_are_not(pool: PgPool) {
-    let base = serve_with_state(pool, shell_routes(), |_| {}).await;
+    let base = serve_with_state(pool, shell_routes(), |state| state.config.site = true).await;
     let dashboard = client()
         .get(format!("{base}/dashboard"))
         .send()
@@ -247,6 +333,7 @@ async fn application_pages_are_noindex_and_marketing_pages_are_not(pool: PgPool)
 async fn the_demo_instance_is_noindex_everywhere(pool: PgPool) {
     let base = serve_with_state(pool, shell_routes(), |state| {
         state.config.demo_autologin = true;
+        state.config.site = true;
     })
     .await;
     let pricing = client()
@@ -281,7 +368,7 @@ async fn the_demo_instance_is_noindex_everywhere(pool: PgPool) {
 /// is touched.
 #[sqlx::test]
 async fn the_ssr_shell_gets_a_language(pool: PgPool) {
-    let base = serve_with_state(pool, shell_routes(), |_| {}).await;
+    let base = serve_with_state(pool, shell_routes(), |state| state.config.site = true).await;
     let page = client()
         .get(format!("{base}/pricing"))
         .send()
@@ -314,6 +401,7 @@ async fn the_tracker_tag_appears_only_where_a_website_id_is_configured(pool: PgP
 
     let tracked = serve_with_state(pool.clone(), shell_routes(), |state| {
         state.config.umami_website_id = Some(ID.to_string());
+        state.config.site = true;
     })
     .await;
     let page = |base: String| async move {
@@ -329,7 +417,8 @@ async fn the_tracker_tag_appears_only_where_a_website_id_is_configured(pool: PgP
     assert!(html.contains(&tag), "{html}");
     assert!(html.contains(&format!("{tag}</head>")), "{html}");
 
-    let html = page(serve_with_state(pool, shell_routes(), |_| {}).await).await;
+    let html =
+        page(serve_with_state(pool, shell_routes(), |state| state.config.site = true).await).await;
     assert!(!html.contains("stats.js"), "{html}");
 }
 

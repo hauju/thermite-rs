@@ -123,6 +123,15 @@ pub async fn demo_autologin() -> Result<bool, ServerFnError> {
         .demo_autologin)
 }
 
+/// Whether this instance serves the marketing site, so the pages that would link to the
+/// landing page, pricing or the legal pages only do so where those exist. The router already
+/// answers those paths itself (`server::router::site_route`); this is the same fact, for the
+/// links that point at them.
+#[post("/api/errors/site")]
+pub async fn site_enabled() -> Result<bool, ServerFnError> {
+    Ok(crate::server::state::AppState::global().config.site)
+}
+
 /// Whether this instance signs people in itself (no identity provider), so the login page
 /// renders the local flow — the admin password, an emailed code, or a passkey — instead of the
 /// FerrisKey one. Inferred from the configuration, never a separate switch.

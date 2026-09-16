@@ -2,7 +2,7 @@ use dioxus::prelude::*;
 
 use crate::UserAuthState;
 use crate::components::logo::ThermiteMark;
-use crate::errors_data::{demo_autologin, local_login};
+use crate::errors_data::{demo_autologin, local_login, site_enabled};
 use crate::routes::Route;
 use crate::waitlist::waitlist_open;
 
@@ -27,6 +27,8 @@ pub fn LoginPage(redirect_url: String) -> Element {
     // Which login flow this instance runs is a server fact, so it is fetched rather than
     // guessed. Both sides start at `None` and render the same skeleton, so hydration matches.
     let local = use_resource(|| async { local_login().await.unwrap_or(false) });
+    // Whether there is a landing page behind the "Back" link at all.
+    let site = use_resource(|| async { site_enabled().await.unwrap_or(false) });
     use_effect(move || {
         if autologin() == Some(true) {
             let _ = document::eval("window.location.href = '/demo';");
@@ -41,25 +43,28 @@ pub fn LoginPage(redirect_url: String) -> Element {
             div { class: "absolute bottom-40 left-10 w-80 h-80 bg-secondary/8 rounded-full blur-[80px]" }
             div { class: "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[40rem] h-[40rem] bg-primary/5 rounded-full blur-[120px]" }
 
-            // Back to home (subtle, floating)
-            div { class: "absolute top-4 left-4 z-20",
-                Link {
-                    to: Route::Home {},
-                    class: "btn btn-ghost btn-sm gap-2",
-                    svg {
-                        xmlns: "http://www.w3.org/2000/svg",
-                        class: "h-4 w-4",
-                        fill: "none",
-                        view_box: "0 0 24 24",
-                        stroke: "currentColor",
-                        path {
-                            stroke_linecap: "round",
-                            stroke_linejoin: "round",
-                            stroke_width: "2",
-                            d: "M15 19l-7-7 7-7",
+            // Back to home (subtle, floating). Only where there is a landing page to go back
+            // to: without the marketing site, `/` is a redirect straight back here.
+            if site() == Some(true) {
+                div { class: "absolute top-4 left-4 z-20",
+                    Link {
+                        to: Route::Home {},
+                        class: "btn btn-ghost btn-sm gap-2",
+                        svg {
+                            xmlns: "http://www.w3.org/2000/svg",
+                            class: "h-4 w-4",
+                            fill: "none",
+                            view_box: "0 0 24 24",
+                            stroke: "currentColor",
+                            path {
+                                stroke_linecap: "round",
+                                stroke_linejoin: "round",
+                                stroke_width: "2",
+                                d: "M15 19l-7-7 7-7",
+                            }
                         }
+                        "Back"
                     }
-                    "Back"
                 }
             }
 

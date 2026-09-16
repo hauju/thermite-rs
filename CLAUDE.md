@@ -460,6 +460,22 @@ closed — the default once the first account exists — because a "Get Started"
 refused login is worse than none. Docs, self-hosting and the demo are untouched: it gates the
 hosted signup, not the product.
 
+**The marketing site is a flag, and it is off.** `THERMITE_SITE` decides whether this instance
+is thermite.rs or just the application. Unset — what the published image ships — `/` is a `302`
+to `/dashboard`, and `/pricing` and `/legal/*` are a plain `404`: the legal pages are Hauke's,
+not a self-hoster's, and nobody links the other two on an instance that is not selling anything.
+The docs stay on every instance, `.md` twins, `/llms.txt` and `/llms-full.txt` included — a
+self-hoster needs the SDK, MCP and cron pages — and `sitemap.xml` then lists only those, since
+the marketing entries would point at the 404s. It is enforced in `router::build`
+(`site_route`/`marketing_site`, beside `patch_shell`) *before* SSR runs rather than in the Dioxus
+tree, so the landing page is never rendered and never flashes, and the client bundle — built long
+before an operator sets the variable — needs no say in it. The links that led to those pages go
+with them: the login page's "Back" and the docs header's "Home" render only while the flag is on
+(`errors_data::site_enabled`, the `demo_autologin()` pattern), and the dashboard shell's mark
+points at `/dashboard` in both modes. The waitlist form and `THERMITE_DEMO_URL` live on the
+landing page, so they need no gate of their own. thermite.rs and demo.thermite.rs set it; nothing
+else should.
+
 Pages use `use_resource` rather than `use_server_future`, deliberately: these are authenticated views
 behind skeletons, and blocking SSR on database queries buys nothing. There is no hydration mismatch
 because both server and client start from `None`.
@@ -649,7 +665,8 @@ emailed codes. SMTP (`SMTP_HOST` + `SMTP_PORT` + `SMTP_FROM`, optional `SMTP_USE
 `SMTP_PASSWORD` / `SMTP_SECURITY`) is otherwise optional. Then optional
 `THERMITE_MAX_ENVELOPE_BYTES` / `THERMITE_RATE_LIMIT_PER_MINUTE`, optional `THERMITE_DSN` +
 `THERMITE_RELEASE` + `ENVIRONMENT` for self-reporting (see "Self-reporting" below), optional
-`UMAMI_HOST` + `UMAMI_WEBSITE_ID` for web analytics (see "Dashboard").
+`UMAMI_HOST` + `UMAMI_WEBSITE_ID` for web analytics and optional `THERMITE_SITE` for the
+marketing pages (both "Dashboard").
 
 ### Styling
 

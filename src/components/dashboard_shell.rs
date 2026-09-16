@@ -128,10 +128,11 @@ pub fn DashboardShell() -> Element {
                             class: "drawer-overlay",
                         }
                         aside { class: "border-r border-base-300 w-64 min-h-full flex flex-col",
-                            // Logo / brand
+                            // Logo / brand. The dashboard, not the landing page: this shell is
+                            // the application, and a self-hosted instance has no landing page.
                             div { class: "p-4 border-b border-base-300",
                                 Link {
-                                    to: Route::Home {},
+                                    to: Route::Dashboard {},
                                     class: "inline-flex items-center gap-2 font-display text-xl font-semibold tracking-tight",
                                     ThermiteMark { size: 26 }
                                     "Thermite"
@@ -223,7 +224,7 @@ fn VisitorShell() -> Element {
                 aside { class: "border-r border-base-300 w-64 min-h-full flex flex-col",
                     div { class: "p-4 border-b border-base-300",
                         Link {
-                            to: Route::Home {},
+                            to: Route::Dashboard {},
                             class: "inline-flex items-center gap-2 font-display text-xl font-semibold tracking-tight",
                             ThermiteMark { size: 26 }
                             "Thermite"

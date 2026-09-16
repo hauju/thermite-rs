@@ -86,7 +86,10 @@ pub fn robots_txt(origin: &str, demo: bool) -> String {
 
 /// `sitemap.xml`: the public pages and every docs page. No `lastmod`, `changefreq` or
 /// `priority` — nothing here knows when a page changed, and the crawlers ignore the other two.
-pub fn sitemap_xml(origin: &str) -> String {
+///
+/// Without the marketing site (`THERMITE_SITE` unset) the docs are all there is: the other
+/// entries would point at the 404 the router answers there.
+pub fn sitemap_xml(origin: &str, site: bool) -> String {
     let mut docs: Vec<String> = DOCS
         .get_all_paths()
         .into_iter()
@@ -98,7 +101,8 @@ pub fn sitemap_xml(origin: &str) -> String {
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
          <urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n",
     );
-    for path in PUBLIC_PAGES
+    let public = if site { PUBLIC_PAGES } else { &[] };
+    for path in public
         .iter()
         .copied()
         .chain(docs.iter().map(String::as_str))
@@ -118,7 +122,7 @@ pub fn sitemap_xml(origin: &str) -> String {
 /// points at them. They come from the docs registry the way the kit's own `SeoRouter` builds
 /// them; that router is not mounted because it also claims `/llms.txt`, `/robots.txt` and
 /// `/sitemap.xml`, each of which says more on this instance than the docs alone.
-pub fn seo_router(origin: &str, demo: bool) -> Router {
+pub fn seo_router(origin: &str, demo: bool, site: bool) -> Router {
     let origin = origin.trim_end_matches('/');
     let robots = robots_txt(origin, demo);
     let mut router = Router::new().route(
@@ -141,7 +145,7 @@ pub fn seo_router(origin: &str, demo: bool) -> Router {
     if demo {
         return router;
     }
-    let sitemap = sitemap_xml(origin);
+    let sitemap = sitemap_xml(origin, site);
     router.route(
         "/sitemap.xml",
         get(move || async move { text(XML, sitemap) }),
@@ -289,6 +293,22 @@ mod tests {
             ))
         );
         assert_eq!(add_umami_tag("no document here", id), None);
+    }
+
+    /// Without the marketing site those URLs are a 404, and a sitemap that lists them is a
+    /// crawl budget spent on nothing.
+    #[test]
+    fn the_sitemap_lists_the_marketing_pages_only_where_they_exist() {
+        let with_site = sitemap_xml("https://thermite.rs", true);
+        assert!(with_site.contains("<loc>https://thermite.rs/pricing</loc>"));
+
+        let docs_only = sitemap_xml("https://errors.example.com", false);
+        assert!(!docs_only.contains("/pricing"), "{docs_only}");
+        assert!(!docs_only.contains("/legal/"), "{docs_only}");
+        assert!(
+            docs_only.contains("<loc>https://errors.example.com/docs/"),
+            "the docs stay: a self-hoster needs the SDK, MCP and cron pages\n{docs_only}"
+        );
     }
 
     #[test]

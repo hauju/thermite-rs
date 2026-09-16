@@ -131,6 +131,10 @@ server. Anything server-side needs `--no-default-features --features server`, wh
     - `SECURE_COOKIES` — `true` in production (HTTPS)
     - `TRUST_PROXY_HEADERS` — `true` behind a reverse proxy, so rate limiting trusts the forwarded
       client IP
+    - `THERMITE_SITE` — `true` also serves the marketing site (the landing page, `/pricing`, the
+      legal pages). Off by default, which is what a self-hosted instance wants: `/` redirects to
+      `/dashboard` and those pages answer `404`. The docs, `/llms.txt` and the application are
+      unaffected either way.
   </Accordion>
   <Accordion title="Authentication">
     - `THERMITE_ADMIN_EMAIL` / `THERMITE_ADMIN_PASSWORD` — the operator credential for local

@@ -66,6 +66,10 @@ pub struct Config {
     /// Where the landing page's "See the live demo" button goes. Unset: this instance's
     /// `demo_project` board, if there is one.
     pub demo_url: Option<String>,
+    /// Whether the marketing site is served at all: the landing page, pricing and the legal
+    /// pages. Off by default, so the published image is just the application — those pages are
+    /// thermite.rs's, not a self-hoster's.
+    pub site: bool,
     /// Hosted signup is behind a waitlist: the landing and pricing pages collect addresses instead
     /// of sending people to a registration that would refuse them.
     pub waitlist: bool,
@@ -159,6 +163,9 @@ impl Config {
                 .map(|v| v == "true")
                 .unwrap_or(false),
             demo_url: get_env_optional("THERMITE_DEMO_URL"),
+            site: get_env_optional("THERMITE_SITE")
+                .map(|v| v == "true")
+                .unwrap_or(false),
             waitlist: get_env_optional("THERMITE_WAITLIST")
                 .map(|v| v == "true")
                 .unwrap_or(false),
