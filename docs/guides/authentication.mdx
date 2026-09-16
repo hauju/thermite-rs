@@ -8,7 +8,7 @@ sidebarTitle: Authentication
 
 | Who | Credential | Grants |
 | --- | --- | --- |
-| A human in a browser | Session cookie, issued after FerrisKey OIDC login | The whole dashboard |
+| A human in a browser | Session cookie, issued after sign-in (local or FerrisKey OIDC) | The whole dashboard |
 | A coding agent | An `oat_` API key, or a token from the OAuth flow | `/mcp` and the REST API |
 | An SDK reporting errors | A DSN public key | Sending events to one project, nothing else |
 
@@ -36,9 +36,44 @@ THERMITE_ALLOWED_EMAILS=alice@example.com,bob@example.com
 THERMITE_ALLOWED_EMAIL_DOMAINS=example.com
 ```
 
+## Humans: two modes, inferred
+
+How people sign in is decided by one variable. **`FERRISKEY_URL` set** means FerrisKey OIDC.
+**Unset** means local mode: Thermite is its own identity provider. There is no mode switch to
+set separately — a second variable could only ever disagree with the credentials actually
+configured.
+
+### Local mode (the default)
+
+An instance needs `DATABASE_URL`, `BASE_URL`, `SESSION_SECRET` and one way in:
+
+```bash
+THERMITE_ADMIN_EMAIL=you@example.com
+THERMITE_ADMIN_PASSWORD=a-long-random-one
+```
+
+The password is hashed with Argon2 once at boot and the plaintext is dropped; nothing about the
+credential is written to the database, and your user row is created on the first successful
+sign-in. Verification runs against a dummy hash when the address does not match, so how long a
+rejection takes does not reveal which address the operator configured.
+
+<Tip>
+**Add a passkey after the first login.** Thermite is its own WebAuthn Relying Party in local
+mode — credentials live in its database, keyed to `BASE_URL`'s host — so the admin password
+becomes a fallback rather than the thing you type every day. Moving the instance to another
+hostname invalidates enrolled passkeys, because the RP ID is derived from that host.
+</Tip>
+
+With SMTP configured, the login page also offers a six-digit code by email, which is a way in
+on its own: an instance may set SMTP and no admin credential. With neither — and no FerrisKey —
+boot fails, naming what to set.
+
+Bearer JWTs are rejected in local mode: there is no issuer whose signature would mean anything.
+`oat_` API keys and the OAuth flow are unaffected.
+
 ## Humans: FerrisKey OIDC
 
-Thermite authenticates people against **[FerrisKey](https://ferriskey.dev)**, an open-source
+Set `FERRISKEY_URL` and Thermite authenticates people against **[FerrisKey](https://ferriskey.dev)**, an open-source
 Rust-native identity provider, over OIDC (authorization code flow with PKCE). The login UI is
 Thermite's own rather than FerrisKey's, so the flow can branch on what credentials an account
 actually has. Sessions are `tower-sessions` rows in the same PostgreSQL.
@@ -78,7 +113,7 @@ whole feature is compiled out of `dx build --release` — it cannot run in produ
 
 | Variable | Description |
 | --- | --- |
-| `FERRISKEY_URL` | FerrisKey base API URL (e.g. `http://localhost:3333` or `https://ferriskey.example.com/api`) |
+| `FERRISKEY_URL` | FerrisKey base API URL (e.g. `http://localhost:3333` or `https://ferriskey.example.com/api`). Setting it is what selects this mode. |
 | `FERRISKEY_ISSUER_URL` | _(Optional)_ Public OIDC issuer base URL. Falls back to `FERRISKEY_URL` with a trailing `/api` stripped. |
 | `FERRISKEY_REALM` | Realm name configured in FerrisKey |
 | `FERRISKEY_CLIENT_ID` | OIDC client ID registered in the realm |
@@ -88,6 +123,9 @@ whole feature is compiled out of `dx build --release` — it cannot run in produ
 The OIDC client must allow `authorization_code` **and** `client_credentials`. The server uses the
 latter to look up, create and verify users without an interactive flow.
 </Warning>
+
+This mode also requires SMTP: its email-OTP branch mails the code, so an instance with
+`FERRISKEY_URL` and no `SMTP_HOST` refuses to boot.
 
 ## Agents: API keys
 
@@ -101,8 +139,9 @@ X-API-Key: oat_...
 Authorization: Bearer oat_...
 ```
 
-Both work on `/mcp` and on the REST API under `/api/v1`. A FerrisKey-issued JWT works on the same
-endpoints, for callers that already have one.
+Both work on `/mcp` and on the REST API under `/api/v1`. In FerrisKey mode a FerrisKey-issued JWT
+works on the same endpoints, for callers that already have one; in local mode there is no issuer,
+so bearer JWTs are rejected and an `oat_` key is the credential.
 
 Connecting Claude Code:
 
@@ -150,7 +189,8 @@ async fn get_login_data() -> Result<Option<LoggedInData>, ServerFnError> {
 ```
 
 `ApiAuth` (`src/server/api_auth.rs`) is the machine-facing half: it accepts an `oat_` key or a
-FerrisKey JWT and resolves the owning user. `thermite-core` ships its read API **unauthenticated**
+FerrisKey JWT — the latter only in FerrisKey mode, where a JWKS cache exists — and resolves the
+owning user. `thermite-core` ships its read API **unauthenticated**
 and `src/server/thermite.rs` wraps it in that check — inverting it would drag sessions and OAuth
 into the ingest crate.
 

@@ -76,21 +76,25 @@ impl Sink {
         let global_emails =
             parse_mailboxes(state.config.alert_email.as_deref().unwrap_or_default());
 
-        let config = smtp::SmtpConfig {
-            from: state.config.smtp_from.clone(),
-            host: state.config.smtp_host.clone(),
-            port: state.config.smtp_port,
-            user: state.secrets.smtp_user.clone(),
-            password: state.secrets.smtp_password.clone(),
-            security: state.config.smtp_security,
-        };
-        let smtp = match smtp::AsyncSmtpClientImpl::new(config) {
-            Ok(client) => Some(client),
-            Err(error) => {
-                tracing::error!(%error, "alert email disabled: SMTP client failed to build");
-                None
+        // `None` when the deployment has no SMTP at all — a local-mode instance need not
+        // configure one. Webhook delivery is unaffected.
+        let smtp = state.config.smtp.as_ref().and_then(|settings| {
+            let config = smtp::SmtpConfig {
+                from: settings.from.clone(),
+                host: settings.host.clone(),
+                port: settings.port,
+                user: state.secrets.smtp_user.clone(),
+                password: state.secrets.smtp_password.clone(),
+                security: settings.security,
+            };
+            match smtp::AsyncSmtpClientImpl::new(config) {
+                Ok(client) => Some(client),
+                Err(error) => {
+                    tracing::error!(%error, "alert email disabled: SMTP client failed to build");
+                    None
+                }
             }
-        };
+        });
 
         Self {
             global_emails,
@@ -124,10 +128,18 @@ impl Sink {
             .or(self.global_webhook.as_deref());
 
         let email = async {
-            let smtp = self.smtp.as_ref()?;
             if alert.email_done || recipients.is_empty() {
                 return None;
             }
+            let Some(smtp) = self.smtp.as_ref() else {
+                // A recipient with no transport. Settling the row silently would look exactly
+                // like an instance nobody configured alerting on.
+                tracing::warn!(
+                    alert = alert.id,
+                    "alert email skipped: recipients are configured but SMTP_HOST is not"
+                );
+                return None;
+            };
 
             let mut ok = true;
             for mailbox in &recipients {

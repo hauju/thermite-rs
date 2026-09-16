@@ -1,0 +1,74 @@
+# A self-contained Thermite to look at, not one to deploy.
+#
+#   docker compose -f compose.demo.yaml up -d
+#   open http://localhost:8080/demo
+#
+# `/demo` signs any visitor in as a shared user with write access to every project,
+# and the demo project reseeds itself if you delete it — so this stack needs no
+# identity provider, no SMTP account and no secrets to get you to a populated
+# dashboard. That is also why every port is bound to 127.0.0.1 and why this file
+# must not be the basis of a real instance: it has no login.
+#
+# The first tick of the demo feed lands about two minutes after boot; until then
+# the project is there and empty.
+services:
+  thermite:
+    image: ghcr.io/hauju/thermite:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      DATABASE_URL: postgres://thermite:thermite@postgres:5432/thermite
+      BASE_URL: http://localhost:8080
+      # Fixed, and safe only because this stack is loopback-only and has no account
+      # worth protecting. A real instance generates its own (`just bootstrap`).
+      SESSION_SECRET: 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+      SECURE_COOKIES: "false"
+
+      # Anyone who opens /demo is signed in. The whole point here, a disaster anywhere else.
+      THERMITE_DEMO_AUTOLOGIN: "true"
+      # Declares the project the feed keeps alive, seeds and recreates.
+      THERMITE_DEMO_PROJECT: playground
+
+      # Only so boot has a way in on paper: /demo signs every visitor in anyway, and nobody
+      # ever reaches the login form.
+      THERMITE_ADMIN_EMAIL: demo@localhost
+      THERMITE_ADMIN_PASSWORD: demo
+
+      # SMTP is optional; it is here so alerts land in Mailpit's UI rather than with anyone.
+      # Fine for seeing what an alert looks like; the reason this file is not a deployment.
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_FROM: thermite@localhost
+      SMTP_SECURITY: none
+      THERMITE_ALERT_EMAIL: you@localhost
+
+  postgres:
+    image: postgres:18
+    volumes:
+      - demo_postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: thermite
+      POSTGRES_PASSWORD: thermite
+      POSTGRES_DB: thermite
+      PGDATA: /var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U thermite -d thermite"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      # Unauthenticated, and it holds every mail this instance sends. Loopback only.
+      - "127.0.0.1:8026:8025"
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+volumes:
+  demo_postgres_data:

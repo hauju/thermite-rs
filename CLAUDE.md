@@ -8,7 +8,8 @@ Thermite is a self-hosted error tracker that speaks Sentry's wire protocol. Unmo
 report into it, events are grouped into issues, and both a Dioxus dashboard and an MCP server read
 the same data — so a coding agent can diagnose a bug with the same information a human sees.
 
-Built on Dioxus 0.7 (Rust), PostgreSQL, FerrisKey (OIDC auth), and rmcp. The app compiles into two
+Built on Dioxus 0.7 (Rust), PostgreSQL, rmcp, and FerrisKey for OIDC auth where an instance
+wants it — sign-in works with no identity provider at all. The app compiles into two
 binaries via Cargo features: a server (`server`) and a WASM client (`web`).
 
 ## Commands
@@ -53,7 +54,7 @@ crates/thermite-sdk/    the reporting client, for thermite itself and any app th
 migrations/             one sequence for the whole workspace
 ```
 
-Auth (FerrisKey OIDC, sessions, login UI), crypto and smtp come from
+Auth (local sign-in or FerrisKey OIDC, sessions, login UI), crypto and smtp come from
 [dx-kit](https://github.com/hauju/dx-kit) as git dependencies pinned by tag
 (`auth = { package = "dx-auth", ... }` — renamed so call sites stay `auth::`).
 To change them, edit `~/Projects/dx-kit` with a `[patch]` in a gitignored
@@ -72,6 +73,41 @@ application decides how each is exposed:
 
 Everything that reads issues — the REST API, the MCP tools, the dashboard's server functions — calls
 the same functions in `thermite_core::api::*`. There is no second implementation to drift.
+
+### Authentication modes
+
+**The mode is inferred, never configured.** `FERRISKEY_URL` set → FerrisKey OIDC (what
+thermite.rs runs, unchanged). Unset → local mode: thermite is its own identity provider, and
+`src/server/router.rs` mounts `auth::local_auth_router` instead of `auth::auth_router` — both own
+`/auth/session/*`, so exactly one is mounted. A separate mode variable could only ever disagree
+with the credentials actually configured, which is a boot into a login nobody can complete.
+
+Local mode needs at least one way in: the admin credential (`THERMITE_ADMIN_EMAIL` +
+`THERMITE_ADMIN_PASSWORD`, both or neither) or SMTP for an emailed code. Neither is a boot error
+naming what to set (`config::sign_in_mode`, a pure function with tests). FerrisKey mode still
+requires SMTP — its OTP branch mails the code.
+
+Four things to preserve:
+
+- **The admin password is hashed once at boot and the plaintext is dropped** (`crypto::hash_secret`
+  into `Secrets`). Nothing about the credential reaches the database; dx-auth creates the user row
+  on the first successful sign-in, exactly as a verified OTP does. A `true` from
+  `AuthUserStore::verify_password` is authorization by itself, so it must answer for that one
+  address and no other.
+- **A non-matching address is still verified, against a dummy hash** computed at boot. Argon2 takes
+  long enough that returning early would tell an attacker which address the operator configured.
+- **`AppState.jwks` is `None` in local mode**, so a bearer JWT fails closed in `api_auth.rs`
+  rather than being validated against a cache that can never hold a key. `oat_` API keys and the
+  OAuth flow are untouched.
+- **SMTP is optional everywhere else too.** `AppEmailSender` exists only when `config.smtp` does,
+  and `alerts.rs` warns once per claimed alert when a recipient is configured but no transport is —
+  settling the row silently would be indistinguishable from an instance nobody configured alerting
+  on. Webhooks are unaffected.
+
+Local mode makes thermite its own WebAuthn Relying Party (`auth/local-login` implies
+`passkey-rp`): `src/server/passkey_store.rs` over `user_passkeys`, RP ID derived from `BASE_URL`'s
+host, so moving the instance to another hostname invalidates enrolled passkeys. A passkey enrolled
+after the first login is what turns the admin password into a fallback.
 
 ### Feature-gated compilation
 
@@ -607,10 +643,13 @@ image's `apt` layer — nothing of the application is emulated. Published to
 ### Environment variables
 
 Copy `.env.example` to `.env`. Key variables: `DATABASE_URL`, `BASE_URL`, `SESSION_SECRET` (hex, 64+
-bytes), the `FERRISKEY_*` set, SMTP settings, optional `THERMITE_MAX_ENVELOPE_BYTES` /
-`THERMITE_RATE_LIMIT_PER_MINUTE`, optional `THERMITE_DSN` + `THERMITE_RELEASE` + `ENVIRONMENT`
-for self-reporting (see "Self-reporting" below), optional `UMAMI_HOST` + `UMAMI_WEBSITE_ID` for
-web analytics (see "Dashboard").
+bytes), and one way to sign in — `THERMITE_ADMIN_EMAIL` + `THERMITE_ADMIN_PASSWORD` (local mode),
+the `FERRISKEY_*` set (which selects FerrisKey mode and also needs SMTP), or SMTP alone for
+emailed codes. SMTP (`SMTP_HOST` + `SMTP_PORT` + `SMTP_FROM`, optional `SMTP_USER` /
+`SMTP_PASSWORD` / `SMTP_SECURITY`) is otherwise optional. Then optional
+`THERMITE_MAX_ENVELOPE_BYTES` / `THERMITE_RATE_LIMIT_PER_MINUTE`, optional `THERMITE_DSN` +
+`THERMITE_RELEASE` + `ENVIRONMENT` for self-reporting (see "Self-reporting" below), optional
+`UMAMI_HOST` + `UMAMI_WEBSITE_ID` for web analytics (see "Dashboard").
 
 ### Styling
 

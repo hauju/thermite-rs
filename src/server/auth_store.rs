@@ -56,6 +56,18 @@ impl AuthUserStore for AppAuthUserStore {
         Ok(user.map(user_entity_to_auth_user))
     }
 
+    /// Required by the local flow: the passkey-autofill path has a credential row and no email.
+    async fn get_user_by_id(&self, id: &str) -> AuthResult<Option<AuthUser>> {
+        let Ok(id) = Uuid::parse_str(id) else {
+            return Ok(None);
+        };
+        let user = user::find_by_id(&self.state.db, id)
+            .await
+            .map_err(|e| AuthError::ServerStateError(format!("DB error: {e}")))?;
+
+        Ok(user.map(user_entity_to_auth_user))
+    }
+
     async fn get_user_by_email(&self, email: &str) -> AuthResult<Option<AuthUser>> {
         let user = user::find_by_email(&self.state.db, email)
             .await
@@ -165,6 +177,34 @@ impl AuthUserStore for AppAuthUserStore {
         Ok(default_url.to_string())
     }
 
+    /// The one credential thermite owns itself: `THERMITE_ADMIN_EMAIL` + `THERMITE_ADMIN_PASSWORD`,
+    /// hashed once at boot and never stored anywhere. dx-auth treats a `true` here as
+    /// authorization by itself, so this must answer for exactly that one address.
+    ///
+    /// The comparison runs against a dummy hash when the address is not the admin's: an Argon2
+    /// verification takes long enough that skipping it would tell an attacker which address the
+    /// operator configured.
+    async fn verify_password(&self, email: &str, password: &str) -> AuthResult<bool> {
+        let secrets = &self.state.secrets;
+        let Some(admin_hash) = secrets.admin_password_hash.as_deref() else {
+            return Ok(false);
+        };
+        let is_admin = self
+            .state
+            .config
+            .admin_email
+            .as_deref()
+            .is_some_and(|configured| configured.eq_ignore_ascii_case(email));
+
+        let hash = if is_admin {
+            admin_hash
+        } else {
+            &secrets.dummy_password_hash
+        };
+
+        Ok(crypto::verify_secret(hash, password) && is_admin)
+    }
+
     async fn has_any_users(&self) -> AuthResult<bool> {
         let exists = sqlx::query_scalar!(r#"SELECT EXISTS(SELECT 1 FROM users) AS "exists!""#)
             .fetch_one(&self.state.db.pool)
@@ -176,13 +216,23 @@ impl AuthUserStore for AppAuthUserStore {
 }
 
 /// Implements `AuthEmailSender` using the smtp crate.
+///
+/// Built only when SMTP is configured: without it there is no emailed code to offer, and
+/// dx-auth's `AuthState` takes the sender as an `Option` for exactly that case.
 pub struct AppEmailSender {
-    state: AppState,
+    config: crate::server::config::SmtpConfig,
+    user: secrecy::SecretString,
+    password: secrecy::SecretString,
 }
 
 impl AppEmailSender {
-    pub fn new(state: AppState) -> Self {
-        Self { state }
+    /// `None` when the deployment has no `SMTP_HOST`.
+    pub fn new(state: &AppState) -> Option<Self> {
+        Some(Self {
+            config: state.config.smtp.clone()?,
+            user: state.secrets.smtp_user.clone(),
+            password: state.secrets.smtp_password.clone(),
+        })
     }
 }
 
@@ -194,16 +244,13 @@ impl AuthEmailSender for AppEmailSender {
         code: &str,
         expires_in_minutes: u32,
     ) -> AuthResult<()> {
-        let config = &self.state.config;
-        let secrets = &self.state.secrets;
-
         let smtp_config = smtp::SmtpConfig {
-            from: config.smtp_from.clone(),
-            host: config.smtp_host.clone(),
-            port: config.smtp_port,
-            user: secrets.smtp_user.clone(),
-            password: secrets.smtp_password.clone(),
-            security: config.smtp_security,
+            from: self.config.from.clone(),
+            host: self.config.host.clone(),
+            port: self.config.port,
+            user: self.user.clone(),
+            password: self.password.clone(),
+            security: self.config.security,
         };
 
         let client = smtp::AsyncSmtpClientImpl::new(smtp_config).map_err(|e| {
@@ -386,6 +433,56 @@ mod tests {
         assert!(
             store.has_any_users().await.unwrap(),
             "once a user exists, registration must close"
+        );
+    }
+
+    /// The whole of local sign-in's authorization: the operator's own credential, matched
+    /// against nothing in the database.
+    #[sqlx::test]
+    async fn the_admin_credential_admits_only_that_address(pool: PgPool) {
+        let mut state = test_state(Database::from_pool(pool));
+        state.config.admin_email = Some("admin@example.test".to_string());
+        state.secrets.admin_password_hash = Some(crypto::hash_secret("hunter2").unwrap());
+        state.secrets.dummy_password_hash = crypto::hash_secret("something-else").unwrap();
+        let store = AppAuthUserStore::new(state);
+
+        assert!(
+            store
+                .verify_password("admin@example.test", "hunter2")
+                .await
+                .unwrap()
+        );
+        assert!(
+            !store
+                .verify_password("admin@example.test", "wrong")
+                .await
+                .unwrap()
+        );
+        // An unknown address must not pass, even carrying the admin's password.
+        assert!(
+            !store
+                .verify_password("someone@example.test", "hunter2")
+                .await
+                .unwrap()
+        );
+    }
+
+    /// With no credential configured there is no password step at all, and the store must not
+    /// accept the empty one it would otherwise compare against.
+    #[sqlx::test]
+    async fn no_configured_credential_means_no_password_login(pool: PgPool) {
+        let store = AppAuthUserStore::new(test_state(Database::from_pool(pool)));
+        assert!(
+            !store
+                .verify_password("admin@example.test", "")
+                .await
+                .unwrap()
+        );
+        assert!(
+            !store
+                .verify_password("admin@example.test", "hunter2")
+                .await
+                .unwrap()
         );
     }
 

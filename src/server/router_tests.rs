@@ -898,3 +898,124 @@ async fn demo_login_signs_a_visitor_in_and_returns_them_to_where_they_were(pool:
         .unwrap();
     assert_eq!(users, 1);
 }
+
+// ── Local sign-in (no identity provider) ────────────────────────────────────
+
+/// Configure a state the way an instance with only `THERMITE_ADMIN_EMAIL` +
+/// `THERMITE_ADMIN_PASSWORD` boots: no FerrisKey, no SMTP, the password hashed once.
+fn with_admin_credential(state: &mut AppState, email: &str, password: &str) {
+    state.config.sign_in = crate::server::config::SignInMode::Local;
+    state.config.ferriskey = None;
+    state.config.smtp = None;
+    state.config.admin_email = Some(email.to_string());
+    state.jwks = None;
+    state.secrets.admin_password_hash = Some(crypto::hash_secret(password).unwrap());
+    state.secrets.dummy_password_hash = crypto::hash_secret("not-the-admin-password").unwrap();
+}
+
+/// Both `otp: false` and `password: true` matter: the page has no emailed-code branch to
+/// offer, and needs to be told the password field is worth rendering.
+#[sqlx::test]
+async fn local_sign_in_offers_the_password_step_and_nothing_else(pool: PgPool) {
+    let base = serve_with_state(pool, Router::new(), |state| {
+        with_admin_credential(state, "admin@example.test", "hunter2");
+    })
+    .await;
+
+    let res = client()
+        .post(format!("{base}/auth/session/start"))
+        .header("Origin", "http://localhost:8099")
+        .json(&serde_json::json!({ "email": "admin@example.test" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+
+    let body: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(body["password"], true, "{body}");
+    assert_eq!(body["otp"], false, "no SMTP, so no emailed code: {body}");
+}
+
+#[sqlx::test]
+async fn the_admin_credential_signs_in_and_creates_its_account(pool: PgPool) {
+    let db = pool.clone();
+    // Server functions are registered by `main`, not `build`, so a route that needs the
+    // session stands in for them.
+    let whoami = Router::new().route(
+        "/whoami",
+        axum::routing::get(|session: auth::UserSession| async move {
+            session
+                .data()
+                .map(|data| data.email)
+                .map_err(|_| axum::http::StatusCode::UNAUTHORIZED)
+        }),
+    );
+    let base = serve_with_state(pool, whoami, |state| {
+        with_admin_credential(state, "admin@example.test", "hunter2");
+    })
+    .await;
+
+    let res = client()
+        .post(format!("{base}/auth/session/password/verify"))
+        .header("Origin", "http://localhost:8099")
+        .json(&serde_json::json!({
+            "email": "admin@example.test",
+            "password": "hunter2",
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200, "{:?}", res.text().await);
+    let cookie = res.headers()["set-cookie"]
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_string();
+
+    // The session is real, and the account was created on this first login — nothing about
+    // the credential is written to the database.
+    let res = client()
+        .get(format!("{base}/whoami"))
+        .header("cookie", &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    assert_eq!(res.text().await.unwrap(), "admin@example.test");
+
+    let users: i64 = sqlx::query_scalar("select count(*) from users")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(users, 1);
+}
+
+#[sqlx::test]
+async fn a_wrong_password_is_refused(pool: PgPool) {
+    let base = serve_with_state(pool.clone(), Router::new(), |state| {
+        with_admin_credential(state, "admin@example.test", "hunter2");
+    })
+    .await;
+
+    for (email, password) in [
+        ("admin@example.test", "wrong"),
+        ("someone@example.test", "hunter2"),
+    ] {
+        let res = client()
+            .post(format!("{base}/auth/session/password/verify"))
+            .header("Origin", "http://localhost:8099")
+            .json(&serde_json::json!({ "email": email, "password": password }))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(res.status(), 401, "{email} / {password} must be refused");
+    }
+
+    let users: i64 = sqlx::query_scalar("select count(*) from users")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(users, 0, "a refused login must not create an account");
+}

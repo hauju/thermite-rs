@@ -123,6 +123,17 @@ pub async fn demo_autologin() -> Result<bool, ServerFnError> {
         .demo_autologin)
 }
 
+/// Whether this instance signs people in itself (no identity provider), so the login page
+/// renders the local flow — the admin password, an emailed code, or a passkey — instead of the
+/// FerrisKey one. Inferred from the configuration, never a separate switch.
+#[post("/api/errors/auth/local")]
+pub async fn local_login() -> Result<bool, ServerFnError> {
+    Ok(matches!(
+        crate::server::state::AppState::global().config.sign_in,
+        crate::server::config::SignInMode::Local
+    ))
+}
+
 /// Every project with its attention flags, for the dashboard landing page.
 #[post("/api/errors/overview", session: auth::UserSession)]
 pub async fn project_overview() -> Result<Vec<ProjectOverviewRow>, ServerFnError> {

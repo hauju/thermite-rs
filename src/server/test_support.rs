@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::server::config::{Config, Secrets};
+use crate::server::config::{Config, FerrisKeyConfig, Secrets, SignInMode, SmtpConfig};
 use crate::server::db::Database;
 use crate::server::state::AppState;
 
@@ -38,16 +38,24 @@ pub fn test_state(db: Database) -> AppState {
     let config = Config {
         db_url: "postgres://test".to_string(),
         base_url: "http://localhost:8099".to_string(),
-        ferriskey_url: "http://127.0.0.1:1".to_string(),
-        ferriskey_issuer_url: None,
-        ferriskey_realm: "test".to_string(),
-        ferriskey_client_id: "test-client".to_string(),
+        // FerrisKey, like production: a test that wants local sign-in clears this and sets
+        // `sign_in` (see the local-login cases in router_tests).
+        sign_in: SignInMode::FerrisKey,
+        ferriskey: Some(FerrisKeyConfig {
+            url: "http://127.0.0.1:1".to_string(),
+            issuer_url: None,
+            realm: "test".to_string(),
+            client_id: "test-client".to_string(),
+        }),
         secure_cookies: false,
         trust_proxy_headers: false,
-        smtp_host: "127.0.0.1".to_string(),
-        smtp_port: 1,
-        smtp_from: "test@example.test".to_string(),
-        smtp_security: smtp::SmtpSecurity::None,
+        smtp: Some(SmtpConfig {
+            host: "127.0.0.1".to_string(),
+            port: 1,
+            from: "test@example.test".to_string(),
+            security: smtp::SmtpSecurity::None,
+        }),
+        admin_email: None,
         alert_email: None,
         alert_webhook: None,
         allowed_registration_emails: Vec::new(),
@@ -67,14 +75,19 @@ pub fn test_state(db: Database) -> AppState {
         ferriskey_client_secret: None,
         smtp_user: secrecy::SecretString::from(String::new()),
         smtp_password: secrecy::SecretString::from(String::new()),
+        admin_password_hash: None,
+        // Cheap and unverifiable: the tests that exercise the password step hash a real one.
+        dummy_password_hash: String::new(),
     };
 
-    let jwks = Arc::new(auth::JwksCache::new(
-        &config.ferriskey_url,
-        &config.ferriskey_url,
-        &config.ferriskey_realm,
-        &config.ferriskey_client_id,
-    ));
+    let jwks = config.ferriskey.as_ref().map(|fk| {
+        Arc::new(auth::JwksCache::new(
+            &fk.url,
+            &fk.url,
+            &fk.realm,
+            &fk.client_id,
+        ))
+    });
 
     let thermite_config = thermite_core::Config::from_env(&config.base_url);
     let thermite = thermite_core::ThermiteState::new(db.pool.clone(), thermite_config.clone());

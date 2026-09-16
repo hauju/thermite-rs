@@ -79,14 +79,26 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
                 .expect("Invalid session secret"),
         );
 
+    let ferriskey = app_state.config.ferriskey.clone();
     let auth_config = auth::AuthConfig {
         login_page_url: "/login".to_string(),
         default_post_login_url: "/dashboard".to_string(),
         dev_login_url: "/login".to_string(),
-        ferriskey_url: app_state.config.ferriskey_url.clone(),
-        ferriskey_issuer_url: app_state.config.ferriskey_issuer_url.clone(),
-        ferriskey_realm: app_state.config.ferriskey_realm.clone(),
-        ferriskey_client_id: app_state.config.ferriskey_client_id.clone(),
+        // Empty in local mode. The FerrisKey handlers are not mounted there, so nothing reads
+        // these; leaving them as `Default` keeps the one source of truth on `config.ferriskey`.
+        ferriskey_url: ferriskey
+            .as_ref()
+            .map(|f| f.url.clone())
+            .unwrap_or_default(),
+        ferriskey_issuer_url: ferriskey.as_ref().and_then(|f| f.issuer_url.clone()),
+        ferriskey_realm: ferriskey
+            .as_ref()
+            .map(|f| f.realm.clone())
+            .unwrap_or_default(),
+        ferriskey_client_id: ferriskey
+            .as_ref()
+            .map(|f| f.client_id.clone())
+            .unwrap_or_default(),
         ferriskey_client_secret: app_state.secrets.ferriskey_client_secret.clone(),
         base_url: app_state.config.base_url.clone(),
         trust_proxy_headers: app_state.config.trust_proxy_headers,
@@ -98,24 +110,52 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
         // Closed after the first account unless the allowlists say otherwise; the waitlist is
         // how a stranger gets in (see `waitlist.rs`).
         open_registration: false,
+        // Offer the password step exactly when there is a password to check — the admin
+        // credential. dx-auth treats a verified one as authorization by itself.
+        password_login: app_state.secrets.admin_password_hash.is_some(),
         // The version every existing account accepted under dx-auth 0.4, which hard-coded it.
         // Bumping it re-prompts everyone on their next login.
         tos_version: Some("1.0".to_string()),
     };
 
-    let auth_state = auth::AuthState {
-        user_store: Arc::new(AppAuthUserStore::new(app_state.clone())),
-        email_sender: Arc::new(AppEmailSender::new(app_state.clone())),
-        jwks_cache: app_state.jwks.clone(),
-        // Count auth attempts in PostgreSQL so the quota is enforced once
-        // across every replica, not once per process.
-        rate_limit_store: Some(Arc::new(server::rate_limit::AppAuthRateLimitStore::new(
-            app_state.db.pool.clone(),
-            auth::AUTH_REQUESTS_PER_MINUTE,
-        ))),
-    };
+    let user_store = Arc::new(AppAuthUserStore::new(app_state.clone()));
+    let passkey_store = Arc::new(server::passkey_store::AppAuthPasskeyStore::new(
+        app_state.clone(),
+    ));
+    let email_sender =
+        AppEmailSender::new(&app_state).map(|s| Arc::new(s) as Arc<dyn auth::AuthEmailSender>);
 
-    let auth_routes = auth::auth_router(auth_config, auth_state);
+    // Count auth attempts in PostgreSQL so the quota is enforced once across every replica,
+    // not once per process.
+    let rate_limit_store = Some(Arc::new(server::rate_limit::AppAuthRateLimitStore::new(
+        app_state.db.pool.clone(),
+        auth::AUTH_REQUESTS_PER_MINUTE,
+    )) as Arc<dyn auth::AuthRateLimitStore>);
+
+    // One router or the other, never both: they own the same `/auth/session/*` paths.
+    let auth_routes = match app_state.config.sign_in {
+        crate::server::config::SignInMode::FerrisKey => {
+            let auth_state = auth::AuthState {
+                user_store,
+                email_sender,
+                jwks_cache: app_state
+                    .jwks
+                    .clone()
+                    .expect("FerrisKey mode always builds a JWKS cache"),
+                rate_limit_store,
+                passkey_store,
+            };
+            auth::auth_router(auth_config, auth_state)
+        }
+        crate::server::config::SignInMode::Local => {
+            let mut auth_state = match email_sender {
+                Some(sender) => auth::AuthState::local(user_store, sender, passkey_store),
+                None => auth::AuthState::local_without_email(user_store, passkey_store),
+            };
+            auth_state.rate_limit_store = rate_limit_store;
+            auth::local_auth_router(auth_config, auth_state)
+        }
+    };
 
     // HSTS is only safe over HTTPS, so gate it on the same flag as secure cookies.
     let hsts = app_state.config.secure_cookies;

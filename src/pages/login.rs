@@ -2,7 +2,7 @@ use dioxus::prelude::*;
 
 use crate::UserAuthState;
 use crate::components::logo::ThermiteMark;
-use crate::errors_data::demo_autologin;
+use crate::errors_data::{demo_autologin, local_login};
 use crate::routes::Route;
 use crate::waitlist::waitlist_open;
 
@@ -24,6 +24,9 @@ pub fn LoginPage(redirect_url: String) -> Element {
     // While hosted signup is behind the waitlist, the reassurance line must not promise a
     // free start that the registration gate will refuse.
     let waitlist = use_resource(|| async { waitlist_open().await.unwrap_or(false) });
+    // Which login flow this instance runs is a server fact, so it is fetched rather than
+    // guessed. Both sides start at `None` and render the same skeleton, so hydration matches.
+    let local = use_resource(|| async { local_login().await.unwrap_or(false) });
     use_effect(move || {
         if autologin() == Some(true) {
             let _ = document::eval("window.location.href = '/demo';");
@@ -60,8 +63,26 @@ pub fn LoginPage(redirect_url: String) -> Element {
                 }
             }
 
+            // Local sign-in: dx-auth's page owns the whole thing — its own card, heading and
+            // hydration gate, with no `embed` prop to strip them — so it replaces the branded
+            // card rather than nesting inside one.
+            if local() == Some(true) {
+                div { class: "relative z-10 w-full",
+                    auth::LocalLoginPage {
+                        redirect_url: redirect_url.clone(),
+                        app_name: "Thermite".to_string(),
+                        // Same reasoning as the FerrisKey page below: a full page load, not a
+                        // router push, so /oauth/authorize/resume is reached as an Axum route.
+                        on_success: move |url: String| {
+                            nav.push(NavigationTarget::<Route>::External(url));
+                        },
+                    }
+                }
+            }
+
             // Login card
-            div { class: "relative z-10 w-full max-w-md",
+            if local() != Some(true) {
+                div { class: "relative z-10 w-full max-w-md",
                 div { class: "relative rounded-2xl bg-base-200/60 backdrop-blur-xl border border-base-300/50 shadow-2xl overflow-hidden",
                     // Top accent line
                     div { class: "absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" }
@@ -77,20 +98,28 @@ pub fn LoginPage(redirect_url: String) -> Element {
                         }
 
                         // Auth crate's LoginPage (embedded — no wrapper/header)
-                        auth::LoginPage {
-                            redirect_url: redirect_url.clone(),
-                            // The crate hands back the validated destination; navigating is the
-                            // host app's job. A full page load, not a router push: the MCP connect
-                            // flow resumes at /oauth/authorize/resume, an Axum route the router
-                            // would treat as a 404 — and a handler that dropped the URL stranded
-                            // every connect on the dashboard instead of the consent page.
-                            on_success: move |url: String| {
-                                nav.push(NavigationTarget::<Route>::External(url));
-                            },
-                            embed: true,
-                        }
+                        if local() == Some(false) {
+                            auth::LoginPage {
+                                redirect_url: redirect_url.clone(),
+                                // The crate hands back the validated destination; navigating is the
+                                // host app's job. A full page load, not a router push: the MCP connect
+                                // flow resumes at /oauth/authorize/resume, an Axum route the router
+                                // would treat as a 404 — and a handler that dropped the URL stranded
+                                // every connect on the dashboard instead of the consent page.
+                                on_success: move |url: String| {
+                                    nav.push(NavigationTarget::<Route>::External(url));
+                                },
+                                embed: true,
+                            }
 
-                        DevLoginButton {}
+                            DevLoginButton {}
+                        } else {
+                            // Still asking which flow to render — the card keeps its shape so the
+                            // page does not jump once the answer lands.
+                            div { class: "flex justify-center py-10",
+                                span { class: "loading loading-spinner loading-md text-primary" }
+                            }
+                        }
 
                         // Reassurance for new signups
                         p { class: "mt-6 text-center text-xs text-base-content/50",
@@ -101,6 +130,7 @@ pub fn LoginPage(redirect_url: String) -> Element {
                             }
                         }
                     }
+                }
                 }
             }
         }

@@ -96,8 +96,11 @@ async fn resolve_api_key(state: &AppState, token: &str) -> Result<ApiAuth, AppEr
 }
 
 async fn resolve_jwt(state: &AppState, token: &str) -> Result<ApiAuth, AppError> {
-    let claims = state
-        .jwks
+    // No identity provider, no issuer to trust: in local mode a bearer JWT is rejected rather
+    // than validated against a cache that can never hold a key. `oat_` keys are unaffected.
+    let jwks = state.jwks.as_ref().ok_or(AppError::Unauthorized)?;
+
+    let claims = jwks
         .validate_token(token)
         .await
         .map_err(|_| AppError::Unauthorized)?;

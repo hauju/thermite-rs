@@ -29,9 +29,9 @@ sidebarTitle: Installation
     Copies `.env.example` to `.env` and fills in a freshly generated `SESSION_SECRET`. It refuses
     to overwrite an existing `.env`.
 
-    The defaults work as-is for local development. The one group you will need to fill in is
-    FerrisKey — see [Authentication](/docs/guides/authentication), or set `DEV_LOGIN=true` to skip
-    it entirely while you are just looking around.
+    The defaults work as-is for local development. Set `THERMITE_ADMIN_EMAIL` and
+    `THERMITE_ADMIN_PASSWORD` and that is your sign-in — no identity provider to stand up. An
+    external one is optional; see [Authentication](/docs/guides/authentication).
   </Step>
   <Step title="Start the infrastructure">
     ```bash
@@ -60,6 +60,31 @@ sidebarTitle: Installation
     as it goes.
   </Step>
 </Steps>
+
+## Signing in
+
+Thermite signs people in itself by default. Set the operator credential and there is nothing
+else to run:
+
+```bash
+THERMITE_ADMIN_EMAIL=you@example.com
+THERMITE_ADMIN_PASSWORD=a-long-random-one
+```
+
+The password is hashed once at boot and never stored — the value in the environment is the only
+copy. Your user row is created on the first successful sign-in, and once you are in you can
+enroll a passkey and stop typing it. With SMTP configured, the login page also offers an emailed
+code, which is a way in on its own, so an instance may set SMTP and no admin credential.
+
+Setting `FERRISKEY_URL` switches authentication to [FerrisKey](https://ferriskey.dev) OIDC
+instead, for a deployment that already runs an identity provider — see
+[Authentication](/docs/guides/authentication). That variable is the whole switch; there is no
+mode to set.
+
+<Warning>
+An instance with none of these refuses to boot, naming what to set. A server nobody can log into
+is a misconfiguration, not a deployment.
+</Warning>
 
 <Note>
 **The first account owns everything.** With no allowlist configured, only the first account may
@@ -108,10 +133,14 @@ server. Anything server-side needs `--no-default-features --features server`, wh
       client IP
   </Accordion>
   <Accordion title="Authentication">
-    - `FERRISKEY_URL` — FerrisKey base API URL
+    - `THERMITE_ADMIN_EMAIL` / `THERMITE_ADMIN_PASSWORD` — the operator credential for local
+      sign-in. Set both or neither; the password is hashed at boot and never stored.
+    - `FERRISKEY_URL` — _(optional)_ FerrisKey base API URL. **Setting it is what selects
+      FerrisKey OIDC** instead of local sign-in; unset, Thermite signs people in itself.
     - `FERRISKEY_ISSUER_URL` — _(optional)_ public OIDC issuer base URL, falls back to
       `FERRISKEY_URL`
-    - `FERRISKEY_REALM` / `FERRISKEY_CLIENT_ID` / `FERRISKEY_CLIENT_SECRET`
+    - `FERRISKEY_REALM` / `FERRISKEY_CLIENT_ID` / `FERRISKEY_CLIENT_SECRET` — required when
+      `FERRISKEY_URL` is set
     - `THERMITE_ALLOWED_EMAILS` / `THERMITE_ALLOWED_EMAIL_DOMAINS` — who may self-register
     - `DEV_LOGIN` — a local-only login shortcut. Compiled out of release builds entirely.
     - `ENCRYPTION_KEY` — _(optional)_ 32-byte base64 key for AES-256-GCM
@@ -120,6 +149,10 @@ server. Anything server-side needs `--no-default-features --features server`, wh
     - `SMTP_HOST` / `SMTP_PORT` / `SMTP_FROM` / `SMTP_USER` / `SMTP_PASSWORD`
     - `SMTP_SECURITY` — `tls` (465), `starttls` (587), or `none`. Unset means `none` for
       localhost/Mailpit and `tls` everywhere else.
+
+    Optional. `SMTP_HOST` is the switch: with it unset, alerting delivers to webhooks only and
+    the login page offers no emailed code. FerrisKey mode requires it, because its own login
+    mails a verification code.
   </Accordion>
   <Accordion title="Ingest tuning">
     - `THERMITE_MAX_ENVELOPE_BYTES` — hard cap on a request body, before decompression

@@ -24,8 +24,10 @@ thermite/
   migrations/             one database, one migration sequence
 ```
 
-Auth (FerrisKey OIDC, sessions, login UI), crypto and smtp are shared
-[dx-kit](https://github.com/hauju/dx-kit) crates, pinned by git tag.
+Auth (local sign-in or FerrisKey OIDC, sessions, login UI), crypto and smtp are shared
+[dx-kit](https://github.com/hauju/dx-kit) crates, pinned by git tag. Self-hosting needs no
+identity provider and no SMTP: set `THERMITE_ADMIN_EMAIL` and `THERMITE_ADMIN_PASSWORD` and
+sign in.
 
 `thermite-core` knows nothing about sessions, OAuth or rendering. It exposes two routers and the
 application decides how they are exposed:
@@ -49,11 +51,22 @@ counters live in-process — a network hop per event to enforce an approximate q
 Valkey earns its place when ingest runs on several nodes and quota state has to be shared. Not
 before.
 
+## Try it
+
+```bash
+docker compose -f compose.demo.yaml up -d
+open http://localhost:8080/demo
+```
+
+A populated dashboard with no identity provider, no SMTP account and no secrets to
+fill in: `/demo` signs you in, and the demo project seeds and feeds itself. It is
+bound to `127.0.0.1` and has no login at all, so look at it — do not deploy it.
+
 ## Quickstart
 
 ```bash
 docker compose up -d          # Postgres + Mailpit
-cp .env.example .env          # DATABASE_URL, BASE_URL, SESSION_SECRET, FerrisKey
+cp .env.example .env          # DATABASE_URL, BASE_URL, SESSION_SECRET, THERMITE_ADMIN_*
 dx serve                      # the app: dashboard, docs, ingest, /api/v1, /mcp
 ```
 

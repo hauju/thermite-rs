@@ -15,7 +15,9 @@ pub struct AppState {
     pub secrets: Secrets,
     /// Shared JWKS cache for validating FerrisKey-issued bearer tokens. Held here
     /// so it's reused by both the auth router and the API dual-auth extractor.
-    pub jwks: Arc<auth::JwksCache>,
+    /// `None` in local mode: there is no issuer, so a bearer JWT fails closed
+    /// rather than being validated against an inert cache.
+    pub jwks: Option<Arc<auth::JwksCache>>,
     /// Query state for `thermite-core`, on the interactive pool: the dashboard, the REST API
     /// and the MCP tools all read one place.
     pub thermite: thermite_core::ThermiteState,
@@ -38,15 +40,14 @@ impl AppState {
         )
         .await?;
 
-        let jwks = Arc::new(auth::JwksCache::new(
-            &config.ferriskey_url,
-            config
-                .ferriskey_issuer_url
-                .as_deref()
-                .unwrap_or(&config.ferriskey_url),
-            &config.ferriskey_realm,
-            &config.ferriskey_client_id,
-        ));
+        let jwks = config.ferriskey.as_ref().map(|fk| {
+            Arc::new(auth::JwksCache::new(
+                &fk.url,
+                fk.issuer_url.as_deref().unwrap_or(&fk.url),
+                &fk.realm,
+                &fk.client_id,
+            ))
+        });
 
         let thermite_config = thermite_core::Config::from_env(&config.base_url);
         let thermite = thermite_core::ThermiteState::new(db.pool.clone(), thermite_config.clone());

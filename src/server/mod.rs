@@ -12,6 +12,7 @@ pub mod llms;
 pub mod mcp;
 pub mod oauth;
 pub mod og;
+pub mod passkey_store;
 pub mod pwa;
 pub mod rate_limit;
 pub mod router;
