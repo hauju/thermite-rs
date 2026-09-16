@@ -111,7 +111,7 @@ pub fn IssueDetail(id: i64) -> Element {
                                         Icon { icon: LdCopy, width: 12, height: 12 }
                                     }
                                 }
-                                h1 { class: "font-display text-2xl font-bold mt-2 break-words",
+                                h1 { class: "font-display text-2xl font-bold mt-2 break-words line-clamp-3",
                                     "{detail.title}"
                                 }
                                 if let Some(culprit) = &detail.culprit {

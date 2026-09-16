@@ -240,6 +240,18 @@ fn title_omits_an_empty_value() {
 }
 
 #[test]
+fn display_title_elides_a_title_too_long_to_render() {
+    // A CDN error page arrives as one long line, so `title` alone stays under no limit.
+    let value = "x".repeat(1024);
+    let capped = display_title("UnexpectedServerResponse", &value);
+
+    assert_eq!(capped.chars().count(), 201);
+    assert!(capped.ends_with('\u{2026}'));
+    // Short titles are untouched, ellipsis included.
+    assert_eq!(display_title("KeyError", "missing"), "KeyError: missing");
+}
+
+#[test]
 fn crash_location_prefers_the_innermost_in_app_frame() {
     let event = json!({
         "exception": { "values": [{ "stacktrace": { "frames": [

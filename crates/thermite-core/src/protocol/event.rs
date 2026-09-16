@@ -14,6 +14,11 @@ const MAX_TYPE_LEN: usize = 128;
 /// Maximum length of an exception value or log message, matching Sentry's trim.
 const MAX_VALUE_LEN: usize = 1024;
 
+/// How long a title may be before the issue page has to elide it. Well short of `MAX_VALUE_LEN`:
+/// the value is there to be read in full on the event, the title is there to identify the issue
+/// in a list.
+const MAX_TITLE_LEN: usize = 200;
+
 /// A clock this far ahead of ours is wrong. Without this, one client with a broken clock pins its
 /// issue to the top of a `last_seen`-ordered list indefinitely.
 const MAX_CLOCK_SKEW_SECS: i64 = 3600;
@@ -202,12 +207,29 @@ fn log_message_type_and_value(event: &Value) -> (String, String) {
 }
 
 /// A human-readable title, `"Type: value"` or just `"Type"`.
+///
+/// Uncapped on purpose: this also builds the grouping key, and shortening that would re-group
+/// every issue whose value is longer than the cap. [`display_title`] is the capped one.
 pub fn title(exception_type: &str, value: &str) -> String {
     let first_line = value.lines().next().unwrap_or("");
     if first_line.is_empty() {
         return exception_type.to_string();
     }
     format!("{exception_type}: {first_line}")
+}
+
+/// The title as the issue page renders it, whole and at display size.
+///
+/// An exception value is trimmed to `MAX_VALUE_LEN`, but a kilobyte still arrives as one line when
+/// the value is an HTML error page a CDN returned — which renders as a full screen of bold text.
+pub fn display_title(exception_type: &str, value: &str) -> String {
+    let title = title(exception_type, value);
+    if title.chars().count() <= MAX_TITLE_LEN {
+        return title;
+    }
+    let mut capped = trim(&title, MAX_TITLE_LEN);
+    capped.push('\u{2026}');
+    capped
 }
 
 /// `(file, function)` of the frame that best represents where the crash happened.

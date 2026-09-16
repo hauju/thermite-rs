@@ -29,7 +29,7 @@ pub struct Grouping {
 
 pub fn group(event: &Value) -> Grouping {
     let (exception_type, exception_value) = event::type_and_value(event);
-    let title = event::title(&exception_type, &exception_value);
+    let title = event::display_title(&exception_type, &exception_value);
 
     let key = match event::fingerprint(event) {
         // An explicit fingerprint is honored verbatim, unless it asks for the default to be mixed
