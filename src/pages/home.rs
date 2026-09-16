@@ -11,6 +11,9 @@ use crate::waitlist::{WaitlistForm, waitlist_open};
 #[component]
 pub fn Home() -> Element {
     let demo = use_resource(|| async { demo_link().await.ok().flatten() });
+    use_drop(|| {
+        let _ = document::eval("window.__thermiteEmbersCleanup?.();");
+    });
     // Server-rendered rather than a skeleton: the primary call to action must not flip from a
     // button to a form after the page has painted.
     let waitlist = use_server_future(|| async { waitlist_open().await.unwrap_or(false) })?;
@@ -26,6 +29,15 @@ pub fn Home() -> Element {
             // Ambient hero backdrop: soft azure glow + masked guideline grid.
             div { class: "landing-hero-glow" }
             div { class: "landing-hero-grid" }
+            // Embers off the mark, drawn beneath the copy (`assets/hero-embers.js`).
+            canvas {
+                id: "hero-embers",
+                class: "landing-hero-embers",
+                "aria-hidden": "true",
+                onmounted: move |_| {
+                    let _ = document::eval(include_str!("../../assets/hero-embers.js"));
+                },
+            }
 
             div { class: "container relative mx-auto px-4 pt-20 pb-16 max-w-4xl",
                 // Hero
@@ -35,7 +47,9 @@ pub fn Home() -> Element {
                         "Sentry-compatible, self-hosted"
                     }
 
-                    div { class: "landing-hero-rise hero-delay-1 inline-flex items-center gap-4 mb-10",
+                    div {
+                        id: "hero-brand",
+                        class: "landing-hero-rise hero-delay-1 inline-flex items-center gap-4 mb-10",
                         ThermiteMark { size: 72 }
                         span { class: "font-display text-6xl sm:text-7xl font-bold tracking-tight",
                             "Thermite"
