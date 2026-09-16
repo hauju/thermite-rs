@@ -6,6 +6,7 @@
 
 use dioxus::prelude::*;
 
+use crate::components::copy_dsn::CopyDsn;
 use crate::components::toast::{ToastLevel, show_toast};
 use crate::errors_data::{
     create_project_key, delete_project, delete_project_key, get_project, rename_project,
@@ -26,7 +27,7 @@ pub fn ProjectSettings(slug: String) -> Element {
     });
 
     rsx! {
-        div { class: "max-w-2xl",
+        div { class: "max-w-2xl mx-auto",
             match &*project.read_unchecked() {
                 Some(Ok(data)) => rsx! {
                     div { class: "mb-6",
@@ -117,7 +118,7 @@ fn GeneralCard(project: ProjectSummary, on_renamed: EventHandler<()>) -> Element
                         }
                     }
                     button {
-                        class: "btn btn-sm btn-primary",
+                        class: "btn btn-sm btn-outline",
                         r#type: "submit",
                         disabled: saving() || name().trim().is_empty(),
                         if saving() {
@@ -330,8 +331,11 @@ fn KeysCard(project: ProjectSummary) -> Element {
                 h2 { class: "card-title text-base", "DSN keys" }
                 div {
                     div { class: "text-xs uppercase tracking-wide text-base-content/50 mb-1", "Default DSN" }
-                    code { class: "block bg-base-300 rounded px-3 py-2 text-xs break-all font-mono",
-                        "{dsn}"
+                    div { class: "flex items-center gap-2",
+                        code { class: "flex-1 bg-base-300 rounded px-3 py-2 text-xs break-all font-mono",
+                            "{dsn}"
+                        }
+                        CopyDsn { dsn: dsn.clone(), label: slug() }
                     }
                 }
                 div {
@@ -352,6 +356,7 @@ fn KeysCard(project: ProjectSummary) -> Element {
                                 code { class: "flex-1 bg-base-300 rounded px-3 py-1.5 text-xs break-all font-mono",
                                     "{key.dsn}"
                                 }
+                                CopyDsn { dsn: key.dsn.clone(), label: key.label.clone() }
                                 button {
                                     class: "btn btn-xs btn-ghost text-error shrink-0",
                                     disabled: revoking(),

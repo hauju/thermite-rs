@@ -68,18 +68,18 @@ pub fn IssueDetail(id: i64) -> Element {
 
     match &*issue.read_unchecked() {
         None => rsx! {
-            div { class: "max-w-5xl flex flex-col gap-4",
+            div { class: "max-w-7xl mx-auto flex flex-col gap-4",
                 div { class: "skeleton h-32" }
                 div { class: "skeleton h-64" }
             }
         },
         Some(Err(e)) => rsx! {
-            div { class: "max-w-5xl alert alert-error", {load_error("Could not load this issue", e)} }
+            div { class: "max-w-7xl mx-auto alert alert-error", {load_error("Could not load this issue", e)} }
         },
         Some(Ok(detail)) => {
             let badge = level_class(&detail.level);
             rsx! {
-                div { class: "max-w-5xl flex flex-col gap-6",
+                div { class: "max-w-7xl mx-auto w-full flex flex-col gap-6",
 
                     div {
                         Link {
@@ -201,8 +201,8 @@ pub fn IssueDetail(id: i64) -> Element {
                                 }
                             }
                         }
-                        // The analyses come first on the page, so the stack trace can sit a
-                        // screen or two down; these put it one click away.
+                        // The rail and the analyses can still push a section below the fold;
+                        // these put each one a click away.
                         nav { class: "flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm",
                             "aria-label": "Sections",
                             if !detail.analyses.is_empty() || can_write {
@@ -217,6 +217,14 @@ pub fn IssueDetail(id: i64) -> Element {
                             JumpLink { target: "activity", label: "Activity" }
                         }
                     }
+
+                    // Two columns from `xl` up: the diagnosis — findings, then the stack trace —
+                    // in the main column, and everything that summarises the issue rather than
+                    // explaining it in the rail. Below `xl` it collapses to this same order, so a
+                    // phone also reaches the stack trace before the tag distributions.
+                    div { class: "grid gap-6 xl:grid-cols-[minmax(0,1fr)_21rem] items-start",
+
+                    div { class: "flex flex-col gap-6 min-w-0",
 
                     // Before the analyses: for a regression the diff between the two releases is
                     // where the answer usually is, and an agent's findings should be read against it.
@@ -246,12 +254,6 @@ pub fn IssueDetail(id: i64) -> Element {
                                 }
                             }
                         }
-                    }
-
-                    // Distribution across *all* events, not just the one shown below — "every
-                    // event has server_name=web-3" is a diagnosis in itself.
-                    if !detail.tags.is_empty() {
-                        TagsSection { tags: detail.tags.clone(), project_slug: detail.project_slug.clone() }
                     }
 
                     div { id: "event", class: "scroll-mt-4",
@@ -288,10 +290,20 @@ pub fn IssueDetail(id: i64) -> Element {
                     }
                     }
 
+                    }
+
+                    aside { class: "flex flex-col gap-6 min-w-0",
+
+                    // Distribution across *all* events, not just the one shown in the main
+                    // column — "every event has server_name=web-3" is a diagnosis in itself.
+                    if !detail.tags.is_empty() {
+                        TagsSection { tags: detail.tags.clone(), project_slug: detail.project_slug.clone() }
+                    }
+
                     // What happened to the issue, in order — the answer to "has anyone touched
-                    // this, and did the fix hold". Below the event because it is history, not
-                    // diagnosis. Opens with the first sighting, which is not stored as an
-                    // activity because the issue row already carries it.
+                    // this, and did the fix hold". Beside the event rather than in it because it
+                    // is history, not diagnosis. Opens with the first sighting, which is not
+                    // stored as an activity because the issue row already carries it.
                     section { id: "activity", class: "scroll-mt-4",
                         h2 { class: "text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-2",
                             "Activity"
@@ -319,6 +331,9 @@ pub fn IssueDetail(id: i64) -> Element {
                                 }
                             }
                         }
+                    }
+
+                    }
                     }
                 }
             }
@@ -387,7 +402,7 @@ fn TagsSection(tags: Vec<IssueTag>, project_slug: String) -> Element {
             h2 { class: "text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-2",
                 "Tags"
             }
-            div { class: "grid gap-3 md:grid-cols-2",
+            div { class: "grid gap-3 md:grid-cols-2 xl:grid-cols-1",
                 for (key , values) in groups {
                     {
                         let total: i64 = values.iter().map(|t| t.times_seen).sum::<i64>().max(1);
@@ -416,7 +431,7 @@ fn TagsSection(tags: Vec<IssueTag>, project_slug: String) -> Element {
                                                         // Proportional fill: how much of this issue's
                                                         // traffic carries this value.
                                                         div {
-                                                            class: "absolute inset-y-0 left-0 bg-primary/12",
+                                                            class: "absolute inset-y-0 left-0 bg-primary/25",
                                                             style: "width: {pct}%",
                                                         }
                                                         div { class: "relative flex items-baseline gap-3 px-2 py-1 text-sm",

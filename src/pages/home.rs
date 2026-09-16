@@ -128,8 +128,19 @@ pub fn Home() -> Element {
                     }
                 }
 
-                // Feature cards
-                div { class: "grid grid-cols-1 md:grid-cols-3 gap-4 w-full mt-20",
+                // Feature cards. The heading matters: without it this grid began immediately
+                // after the three-step grid above, and six cards of the same shape read as a
+                // continuation of the loop rather than as what the rest of the product is.
+                div { class: "w-full mt-20",
+                    div { class: "text-center mb-8",
+                        h2 { class: "text-2xl sm:text-3xl font-bold tracking-tight",
+                            "And the rest of an error tracker"
+                        }
+                        p { class: "text-base-content/60 mt-2 max-w-xl mx-auto",
+                            "The parts you would leave Sentry for, not just the part that is new."
+                        }
+                    }
+                div { class: "grid grid-cols-1 md:grid-cols-3 gap-4 w-full",
                     FeatureCard {
                         icon: rsx! { Icon { icon: LdBot, width: 22, height: 22 } },
                         title: "Triage over MCP",
@@ -160,6 +171,7 @@ pub fn Home() -> Element {
                         title: "Release health",
                         description: "Crash-free rate per release, counted from SDK sessions, so a busy release does not read as a broken one.",
                     }
+                }
                 }
             }
         }

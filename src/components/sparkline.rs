@@ -64,7 +64,7 @@ pub fn Sparkline(
                             width: "{bar:.2}",
                             height: "{bar_height:.2}",
                             rx: "0.5",
-                            class: if *value == 0 { "fill-base-300".to_string() } else { fill.clone() },
+                            class: if *value == 0 { "fill-base-content/15".to_string() } else { fill.clone() },
                         }
                     }
                 }
@@ -87,7 +87,7 @@ pub fn RateChart(
     resolution: String,
     #[props(default = Vec::new())] dropped: Vec<i64>,
 ) -> Element {
-    let height = 120u32;
+    let height = 96u32;
     // The scale fits the stacked total, or a bucket with drops would overflow the chart.
     let peak = counts
         .iter()
@@ -98,7 +98,7 @@ pub fn RateChart(
 
     if counts.is_empty() {
         return rsx! {
-            div { class: "h-[120px] flex items-center justify-center text-base-content/40 text-sm",
+            div { class: "h-[96px] flex items-center justify-center text-base-content/40 text-sm",
                 "No data"
             }
         };
@@ -191,6 +191,13 @@ pub fn RateChart(
                 }
                 // Baseline, so an all-zero chart still reads as a chart rather than blank space.
                 div { class: "absolute inset-x-0 bottom-0 border-b border-base-300" }
+                // The scale's upper bound. The bars are drawn against `peak`, so without it a
+                // tall bar and a short one are indistinguishable between two windows.
+                if peak > 0 {
+                    span { class: "absolute top-0 right-0 rounded bg-base-100/85 px-1 text-xs text-base-content/50 tabular-nums pointer-events-none",
+                        "peak {peak}"
+                    }
+                }
             }
             div { class: "relative h-4 mt-1",
                 for (index , text) in ticks {

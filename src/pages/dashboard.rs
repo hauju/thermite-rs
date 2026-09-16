@@ -17,7 +17,7 @@ pub fn Dashboard() -> Element {
     let mut dead = use_resource(move || async move { dead_letters().await });
 
     rsx! {
-        div { class: "max-w-4xl",
+        div { class: "max-w-6xl mx-auto",
             div { class: "flex items-center gap-3 mb-6",
                 div { class: "w-11 h-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0",
                     ThermiteMark { size: 26 }
@@ -32,9 +32,20 @@ pub fn Dashboard() -> Element {
 
             match &*overview.read_unchecked() {
                 Some(Ok(rows)) if rows.is_empty() => rsx! {
+                    // First run is the one moment the drop-in claim can be demonstrated rather
+                    // than asserted, so the empty state shows the three lines that prove it
+                    // instead of only naming the next click.
                     div { class: "card bg-base-200 border border-base-300",
-                        div { class: "card-body items-center text-center py-12 gap-2",
-                            p { class: "text-base-content/60", "No projects yet." }
+                        div { class: "card-body items-center text-center py-12 gap-4",
+                            div {
+                                p { class: "font-display text-lg font-semibold", "Nothing is reporting yet" }
+                                p { class: "text-base-content/60 text-sm mt-1",
+                                    "A project mints a DSN. Point any Sentry SDK at it and its errors land here — no code change beyond the URL."
+                                }
+                            }
+                            pre { class: "text-left bg-base-300 rounded-lg px-4 py-3 text-xs font-mono overflow-x-auto max-w-full",
+                                "sentry_sdk.init(\n  dsn=\"http://<key>@<this-instance>/<project-id>\",\n)"
+                            }
                             Link {
                                 to: Route::Projects {},
                                 class: "btn btn-sm btn-primary",
@@ -137,7 +148,7 @@ fn Totals(rows: Vec<ProjectOverviewRow>) -> Element {
             StatCard { title: "Events (24h)", value: thousands(events) }
             StatCard { title: "Unresolved issues", value: thousands(unresolved) }
             StatCard {
-                title: "Need attention",
+                title: "Projects needing attention",
                 value: attention.to_string(),
                 accent: attention > 0,
             }

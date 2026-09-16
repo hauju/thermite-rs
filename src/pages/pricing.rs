@@ -87,7 +87,7 @@ pub fn Pricing() -> Element {
                 // pointing them at self-hosting would send them away for nothing.
                 div { class: "card card-elevated bg-base-200 mb-6",
                     div { class: "card-body gap-3",
-                        div { class: "flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1",
+                        div { class: "flex flex-wrap items-start justify-between gap-x-6 gap-y-1",
                             div {
                                 p { class: "text-sm font-semibold", "Errors a month" }
                                 p { class: "text-xs text-base-content/50",

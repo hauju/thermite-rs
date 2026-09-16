@@ -386,7 +386,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                                 // list below — which is why the control lives here and not in
                                 // the page header, where it read as a filter on everything.
                                 div { class: "flex flex-wrap items-start justify-between gap-4",
-                                div { class: "flex flex-wrap gap-6",
+                                div { class: "grid grid-cols-3 sm:flex sm:flex-wrap gap-x-6 gap-y-3",
                                     Metric { label: "Events", value: stats.totals.events }
                                     Metric { label: "Unresolved", value: stats.totals.unresolved_issues }
                                     Metric { label: "New", value: stats.totals.new_issues }
@@ -408,7 +408,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                                 div { class: "join",
                                     for option in ["24h", "7d", "30d"] {
                                         button {
-                                            class: if window() == option { "join-item btn btn-sm btn-primary" } else { "join-item btn btn-sm" },
+                                            class: if window() == option { "join-item btn btn-sm btn-neutral" } else { "join-item btn btn-sm" },
                                             onclick: move |_| window.set(option.to_string()),
                                             "{option}"
                                         }
@@ -452,7 +452,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                     div { class: "join",
                         for option in ["unresolved", "resolved", "ignored", "all"] {
                             button {
-                                class: if status() == option { "join-item btn btn-sm btn-primary" } else { "join-item btn btn-sm" },
+                                class: if status() == option { "join-item btn btn-sm btn-neutral" } else { "join-item btn btn-sm" },
                                 onclick: move |_| {
                                     reset_list();
                                     status.set(option.to_string());
@@ -461,16 +461,19 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                             }
                         }
                     }
-                    div { class: "join",
+                    div { class: "flex items-center gap-2",
+                        span { class: "text-xs uppercase tracking-wide text-base-content/40", "Sort" }
+                        div { class: "join",
                         for (value , label) in [("events", "most events"), ("users", "most users"), ("last_seen", "most recent")] {
                             button {
-                                class: if sort() == value { "join-item btn btn-sm btn-primary" } else { "join-item btn btn-sm" },
+                                class: if sort() == value { "join-item btn btn-sm btn-neutral" } else { "join-item btn btn-sm" },
                                 onclick: move |_| {
                                     reset_list();
                                     sort.set(value.to_string());
                                 },
                                 "{label}"
                             }
+                        }
                         }
                     }
                     // Only worth showing once there is something to choose between.
@@ -981,7 +984,7 @@ fn IssueCard(
                                 }
                             },
                             Some("queued") => rsx! {
-                                span { class: "badge badge-sm badge-neutral", "awaiting triage" }
+                                span { class: "text-xs text-base-content/40", "awaiting triage" }
                             },
                             _ => rsx! {},
                         }
@@ -990,7 +993,7 @@ fn IssueCard(
                             span { class: "badge badge-sm badge-primary badge-outline", "analysed" }
                         }
                     }
-                    div { class: "font-medium truncate mt-1", "{row.title}" }
+                    div { class: "font-medium line-clamp-2 sm:truncate mt-1", "{row.title}" }
                     if let Some(culprit) = &row.culprit {
                         div { class: "text-xs text-base-content/50 truncate font-mono", "{culprit}" }
                     }

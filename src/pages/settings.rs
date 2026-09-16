@@ -14,7 +14,7 @@ pub fn Settings() -> Element {
     };
 
     rsx! {
-        div { class: "max-w-2xl",
+        div { class: "max-w-2xl mx-auto",
             h1 { class: "text-3xl font-bold mb-2", "Settings" }
             p { class: "text-base-content/70 mb-8", "Manage your account settings." }
 
