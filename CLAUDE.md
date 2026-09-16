@@ -577,10 +577,20 @@ Postgres/Mailpit containers and a default-credential dev database is never expos
 ### Docker
 
 The `Dockerfile` compiles nothing — it packages a bundle built outside Docker. CI runs
-`dx bundle --web --release` and the image copies `target/dx/thermite/release/web` into a slim Debian
-runtime. Docs, `build.rs` output and SQL migrations are embedded in the server binary, so none ship
-as files. The app listens on 8080 with a `HEALTHCHECK` against `/health`. Building the image locally
-requires running `dx bundle --web --release` first.
+`dx bundle --web --release` and the image copies `dist/<arch>` into a slim Debian runtime. Docs,
+`build.rs` output and SQL migrations are embedded in the server binary, so none ship as files. The
+app listens on 8080 with a `HEALTHCHECK` against `/health`. Building the image locally requires
+running `dx bundle --web --release` first and staging the result under `dist/$(dpkg
+--print-architecture)`.
+
+**The image is `linux/amd64` and `linux/arm64`, bundled on native runners.** The bundle carries a
+native server binary, so an arm64 image cannot be packaged from an amd64 build; `deploy.yml`
+therefore runs the bundle job twice (`ubuntu-latest`, `ubuntu-24.04-arm`) and a single push job
+builds both platforms from the two staged bundles. The bundles travel as tarballs because the
+artifact upload drops the executable bit off `server`, and QEMU is installed only for the runtime
+image's `apt` layer — nothing of the application is emulated. Published to
+`ghcr.io/hauju/thermite` (public, what `compose.demo.yaml` and self-hosters pull) and to
+`vars.REGISTRY` when one is configured.
 
 ### Environment variables
 

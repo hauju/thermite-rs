@@ -1,6 +1,7 @@
 # Ignore everything by default
 *
 
-# Only include the pre-built dx bundle output (built in CI before docker build)
-# The path segment is the crate name — it moved when this stopped being the template.
-!target/dx/thermite/release/web/
+# Only include the pre-built dx bundle output (built in CI before docker build),
+# staged per architecture as dist/<arch> so a multi-platform build can pick the
+# binary compiled for the platform it is building.
+!dist/

@@ -16,8 +16,15 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
 ENV PORT=8080
 ENV IP=0.0.0.0
 
-# Pre-built dx bundle output from GitHub Actions (`dx bundle --web --release`).
-COPY target/dx/thermite/release/web /usr/local/app
+# Pre-built dx bundle output, one per architecture — the bundle carries a native
+# server binary, so the platform being built picks its own. CI stages them (see
+# .github/workflows/deploy.yml); a local build stages one by hand:
+#
+#   dx bundle --web --release
+#   mkdir -p dist/$(dpkg --print-architecture)
+#   cp -a target/dx/thermite/release/web/. dist/$(dpkg --print-architecture)/
+ARG TARGETARCH
+COPY dist/${TARGETARCH} /usr/local/app
 
 WORKDIR /usr/local/app
 
