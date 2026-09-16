@@ -1,0 +1,276 @@
+---
+title: Self-hosting
+description: Run Thermite from the public Docker image — one container, one Postgres, no identity provider
+sidebarTitle: Self-hosting
+---
+
+## What you need
+
+One container and one database:
+
+- **`ghcr.io/hauju/thermite`** — the public image, built on every push to `main` for
+  `linux/amd64` and `linux/arm64`. Tags are `latest` and the full commit SHA; pin the SHA if you
+  want to choose when you move.
+- **PostgreSQL 18** — the whole data layer. Application data, sessions, rate-limit counters and
+  every event live there.
+
+Nothing else. No Redis, no message broker, no worker pool, and no identity provider — Thermite
+signs you in itself with an admin address and password you set in the environment.
+
+The image listens on **8080** (`PORT` and `IP=0.0.0.0` are baked in, so you only override them if
+you want a different port) and carries a `HEALTHCHECK` against `/health`, which gives your
+orchestrator a restart signal without waiting on a probe of your own.
+
+## The compose file
+
+Everything below is required and nothing is optional; the optional pieces get their own section
+at the end.
+
+```yaml
+services:
+  thermite:
+    image: ghcr.io/hauju/thermite:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      DATABASE_URL: postgres://thermite:CHANGE_ME@postgres:5432/thermite
+      # The public origin, exactly as a browser sees it — see "Behind a reverse proxy".
+      BASE_URL: https://errors.example.com
+      SESSION_SECRET: CHANGE_ME
+      THERMITE_ADMIN_EMAIL: you@example.com
+      THERMITE_ADMIN_PASSWORD: CHANGE_ME
+
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    volumes:
+      - thermite_postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: thermite
+      POSTGRES_PASSWORD: CHANGE_ME
+      POSTGRES_DB: thermite
+      PGDATA: /var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U thermite -d thermite"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  thermite_postgres_data:
+```
+
+Generate the session secret:
+
+```bash
+openssl rand -hex 64
+```
+
+It is decoded as hex and must be **at least 64 bytes** — that is 128 hex characters, which is
+what the command above produces. A shorter or non-hex value fails at boot with a message saying
+so.
+
+<Note>
+The port is published on `127.0.0.1` because the container speaks plain HTTP. On a LAN with no
+proxy in front, publish `8080:8080` instead, set `BASE_URL` to that `http://` address and add
+`SECURE_COOKIES: "false"` — otherwise the session cookie is marked secure and the browser never
+sends it back.
+</Note>
+
+## First start
+
+<Steps>
+  <Step title="Bring it up">
+    ```bash
+    docker compose up -d
+    ```
+
+    Postgres starts first; the `depends_on` condition holds Thermite back until its healthcheck
+    passes.
+  </Step>
+  <Step title="Migrations apply themselves">
+    On boot Thermite connects, pings the database and runs the migrations embedded in the binary
+    before it serves a request — you will see `Database migrations applied` in the log. There is
+    no separate migrate step and no schema to load by hand. A fresh database and an existing one
+    take the same path; the already-applied migrations are skipped.
+  </Step>
+  <Step title="Sign in">
+    Open `https://errors.example.com/login` and enter `THERMITE_ADMIN_EMAIL` and
+    `THERMITE_ADMIN_PASSWORD`.
+
+    The password is hashed with Argon2 once at boot and the plaintext dropped — nothing about the
+    credential is written to the database, and your user row is created on this first successful
+    sign-in.
+  </Step>
+  <Step title="Add a passkey">
+    Right after that first sign-in Thermite offers to enroll a passkey ("Add passkey" / "Not
+    now"), so the admin password becomes the fallback rather than the thing you type every day.
+    The credential is keyed to `BASE_URL`'s host, so moving the instance to another hostname
+    invalidates it.
+  </Step>
+</Steps>
+
+<Note>
+**The first account owns everything.** Every account is a full operator over every project, which
+is why registration closes as soon as one user exists (with no allowlist configured). Sign in
+before you point anything else at the instance.
+</Note>
+
+## Behind a reverse proxy
+
+Two variables matter here.
+
+**`BASE_URL` must be the public origin** — the scheme and host a browser types, not the container
+address. It is also the OAuth issuer advertised to MCP clients and the source of the `Host`
+allowlist that `/mcp` validates against, so a wrong value breaks the claude.ai connector and the
+login redirect at the same time.
+
+**`TRUST_PROXY_HEADERS=true`** (default `false`) makes the rate limiters read
+`X-Forwarded-For` / `X-Real-IP` / `Forwarded` instead of the socket address. Without it every
+request appears to come from your proxy, so the per-IP limits count one shared bucket for
+everyone.
+
+**`SECURE_COOKIES` defaults to `true`**, which is correct behind TLS. Set it to `false` only when
+the instance is served over plain HTTP — a LAN deployment with no certificate — because a secure
+cookie is never sent over `http://` and the login will appear to succeed and then bounce you back.
+
+Add the proxy to the same compose file and Caddy resolves the app by its service name:
+
+```yaml
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+```
+
+```caddy
+errors.example.com {
+    reverse_proxy thermite:8080
+}
+```
+
+Caddy obtains and renews the certificate itself; add `TRUST_PROXY_HEADERS: "true"` to the
+`thermite` service and you are done.
+
+## Point an SDK at it
+
+Create a project in the dashboard and copy its DSN from **Project settings → DSN keys**. It is
+your `BASE_URL` with the public key in front and the project id behind:
+
+```
+https://<public_key>@errors.example.com/1
+```
+
+Thermite speaks Sentry's wire protocol, so the official Sentry SDK for your language works
+unmodified — there is nothing to install beyond the SDK you would have used anyway. See the
+[SDKs guide](/docs/guides/sdks) for per-language setup and the settings worth changing.
+
+## Health checks
+
+`GET /health` is **liveness**: it answers `ok` without touching the database, because the image's
+`HEALTHCHECK` restarts the container on failure and a database outage is not fixed by a restart.
+`GET /ready` is **readiness**: it round-trips a query to Postgres and answers `503` when that
+fails or takes over three seconds, which is what a load balancer should poll — never something
+that restarts the process.
+
+## Optional pieces
+
+Everything here is off unless you set it. The full variable list, including the tuning knobs, is
+on the [development setup page](/docs/getting-started/installation#environment-variables).
+
+<AccordionGroup>
+  <Accordion title="Email (SMTP)">
+    - `SMTP_HOST` / `SMTP_PORT` / `SMTP_FROM` / `SMTP_USER` / `SMTP_PASSWORD`
+    - `SMTP_SECURITY` — `tls` (465), `starttls` (587) or `none`. Unset means `none` for
+      localhost and `tls` everywhere else.
+
+    `SMTP_HOST` is the switch, and it buys two things: alert email, and a six-digit sign-in code
+    as an alternative way in. The code is enough on its own, so an instance may configure SMTP
+    and no admin credential at all. With neither — and no FerrisKey — boot fails, naming what to
+    set.
+  </Accordion>
+  <Accordion title="FerrisKey OIDC instead of local sign-in">
+    Setting `FERRISKEY_URL` is the whole switch: Thermite then authenticates people against
+    [FerrisKey](https://ferriskey.dev) over OIDC instead of signing them in itself, and
+    `FERRISKEY_REALM`, `FERRISKEY_CLIENT_ID` and `FERRISKEY_CLIENT_SECRET` become required. That
+    mode also requires SMTP, because its own login mails a verification code.
+
+    For a deployment that already runs an identity provider — see
+    [Authentication](/docs/guides/authentication).
+  </Accordion>
+  <Accordion title="The marketing site">
+    `THERMITE_SITE=true` also serves thermite.rs's landing page, `/pricing` and the legal pages
+    from your instance. Off by default, which is what you want: the image is just the
+    application, `/` redirects to `/dashboard` and those paths answer `404`. The docs,
+    `/llms.txt` and the product itself are unaffected either way.
+  </Accordion>
+  <Accordion title="Web analytics (Umami)">
+    - `UMAMI_HOST` — base URL of **your own** [Umami](https://umami.is) instance
+    - `UMAMI_WEBSITE_ID` — the id Umami issued for this site
+
+    The tracker is proxied from your own origin (`/stats.js` and `/api/send`), because the
+    ad-block lists carry `umami.*` hostnames. Both are read at runtime and with either unset the
+    page carries no tracker tag and the server calls nothing — the published image is the same
+    one everybody pulls.
+  </Accordion>
+  <Accordion title="Retention and quota">
+    - `THERMITE_RETENTION_DAYS` (default `90`) and `THERMITE_MAX_EVENTS_PER_PROJECT` (default
+      `100000`) — events are dropped by whichever rule bites first, `0` disables that rule. Age
+      alone does not bound disk, since a traffic spike fills the window, so the per-project cap
+      is the rule that actually protects you.
+    - `THERMITE_RATE_LIMIT_PER_MINUTE` (default `3000`) — per-project ingest quota in events per
+      rolling minute. Over it, ingest answers `429` with `Retry-After` and the SDK backs off.
+
+    Issue rows, the counters and any agent analyses survive eviction, so charts and totals stay
+    true after the individual payloads are gone.
+  </Accordion>
+  <Accordion title="Self-reporting">
+    `THERMITE_DSN` points Thermite's own SDK at a Thermite. Point it at a **different** instance,
+    or at least a different project: an instance reporting its own ingest failures into the
+    ingest that is failing loses exactly the events worth having. `THERMITE_RELEASE` should be
+    the deployed image's commit SHA, because triage hands an agent the release an error came from
+    and `git diff` only works when that name is a revision.
+  </Accordion>
+</AccordionGroup>
+
+## Upgrading
+
+```bash
+docker compose pull thermite
+docker compose up -d thermite
+```
+
+The new container applies any new migrations on boot, the same way the first one did.
+
+<Warning>
+**Migrations are forward-only.** There are no down migrations and no supported way to run an
+older image against a newer schema, so take a dump before you pull:
+
+```bash
+docker compose exec -T postgres pg_dump -U thermite thermite | gzip > thermite-$(date +%F).sql.gz
+```
+</Warning>
+
+## Just want to look at it
+
+The repository carries `compose.demo.yaml`: a self-contained instance that signs any visitor in
+at `/demo` and keeps a demo project seeded and fed, so you reach a populated dashboard with no
+secrets to fill in and no account to create. It is bound to `127.0.0.1` and has no login at all —
+look at it, do not deploy it.
+
+```bash
+docker compose -f compose.demo.yaml up -d
+open http://localhost:8080/demo
+```
+
+The same thing runs hosted at [demo.thermite.rs](https://demo.thermite.rs/demo) if you would
+rather not pull anything.

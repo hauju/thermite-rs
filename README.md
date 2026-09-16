@@ -64,6 +64,8 @@ bound to `127.0.0.1` and has no login at all, so look at it — do not deploy it
 
 ## Quickstart
 
+Running the published image instead: [Self-hosting](https://thermite.rs/docs/getting-started/self-hosting).
+
 ```bash
 docker compose up -d          # Postgres + Mailpit
 cp .env.example .env          # DATABASE_URL, BASE_URL, SESSION_SECRET, THERMITE_ADMIN_*

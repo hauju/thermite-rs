@@ -6,6 +6,7 @@
       "tab": "Documentation",
       "pages": [
         "getting-started/introduction",
+        "getting-started/self-hosting",
         "getting-started/installation"
       ]
     },
