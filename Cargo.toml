@@ -63,6 +63,9 @@ dioxus-docs-kit = { version = "0.6.1", default-features = false }
 auth = { package = "dx-auth", git = "https://github.com/hauju/dx-kit.git", tag = "dx-auth-v0.10.4", optional = true }
 crypto = { package = "dx-crypto", git = "https://github.com/hauju/dx-kit.git", tag = "dx-crypto-v0.1.0", optional = true }
 smtp = { package = "dx-smtp", git = "https://github.com/hauju/dx-kit.git", tag = "dx-smtp-v0.1.0", optional = true }
+# Self-hosted Umami analytics: the same-origin tracker proxy (/stats.js, /api/send). The tag
+# itself is injected into the SSR shell by server::seo, from UMAMI_WEBSITE_ID.
+umami = { package = "dx-umami", git = "https://github.com/hauju/dx-kit.git", tag = "dx-umami-v0.1.0", features = ["server"], optional = true }
 # Ingest, grouping, and the queries the dashboard and the MCP tools both read.
 thermite-core = { path = "crates/thermite-core", optional = true }
 
@@ -136,6 +139,7 @@ server = [
     "auth/server",
     "dep:crypto",
     "dep:smtp",
+    "dep:umami",
     "dep:thermite-core",
     "dep:thermite-sdk",
     "dep:rustls",

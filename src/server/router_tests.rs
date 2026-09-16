@@ -304,6 +304,35 @@ async fn the_ssr_shell_gets_a_language(pool: PgPool) {
     assert!(robots.starts_with("User-agent: *"), "{robots}");
 }
 
+/// The analytics tag is runtime configuration, not part of the bundle: the published image is
+/// the same for every self-hoster, so an instance with no website id must ship no tracker and
+/// call nothing.
+#[sqlx::test]
+async fn the_tracker_tag_appears_only_where_a_website_id_is_configured(pool: PgPool) {
+    const ID: &str = "af413d12-39d7-4060-bc8d-6856f5b74ae1";
+    let tag = format!(r#"<script defer src="/stats.js" data-website-id="{ID}"></script>"#);
+
+    let tracked = serve_with_state(pool.clone(), shell_routes(), |state| {
+        state.config.umami_website_id = Some(ID.to_string());
+    })
+    .await;
+    let page = |base: String| async move {
+        let res = client()
+            .get(format!("{base}/pricing"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(res.status(), 200);
+        res.text().await.unwrap()
+    };
+    let html = page(tracked).await;
+    assert!(html.contains(&tag), "{html}");
+    assert!(html.contains(&format!("{tag}</head>")), "{html}");
+
+    let html = page(serve_with_state(pool, shell_routes(), |_| {}).await).await;
+    assert!(!html.contains("stats.js"), "{html}");
+}
+
 /// Width and height from the PNG header: IHDR is always the first chunk.
 fn png_size(png: &[u8]) -> (u32, u32) {
     assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n", "not a PNG");

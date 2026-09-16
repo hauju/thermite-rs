@@ -36,6 +36,9 @@ pub struct Config {
     /// Hosted signup is behind a waitlist: the landing and pricing pages collect addresses instead
     /// of sending people to a registration that would refuse them.
     pub waitlist: bool,
+    /// Umami website id. Unset: no tracker tag is written into the page at all — the image is
+    /// public, so an instance nobody configured must phone nowhere.
+    pub umami_website_id: Option<String>,
     /// Size of the interactive pool (dashboard, sessions, API, MCP).
     pub db_max_connections: u32,
     /// Size of the ingest pool — the ceiling on concurrent event digests.
@@ -98,10 +101,26 @@ impl Config {
             waitlist: get_env_optional("THERMITE_WAITLIST")
                 .map(|v| v == "true")
                 .unwrap_or(false),
+            umami_website_id: umami_website_id(get_env_optional("UMAMI_WEBSITE_ID")),
             db_max_connections: parse_env_or("DATABASE_MAX_CONNECTIONS", 10),
             db_ingest_max_connections: parse_env_or("DATABASE_INGEST_MAX_CONNECTIONS", 10),
         })
     }
+}
+
+/// The Umami website id, or `None` for a value that is not one. It is interpolated into an
+/// HTML attribute on every page the server renders, so anything outside the id's own alphabet
+/// is refused rather than escaped — a typo in a deployment's environment must not be able to
+/// close the attribute and inject markup.
+fn umami_website_id(value: Option<String>) -> Option<String> {
+    let id = value
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())?;
+    if id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return Some(id);
+    }
+    tracing::warn!("ignoring UMAMI_WEBSITE_ID: expected ASCII letters, digits and '-' only");
+    None
 }
 
 /// Parse a tuning variable, falling back to the default on a malformed value: a typo in a pool
@@ -196,4 +215,25 @@ fn get_env_optional(key: &str) -> Option<String> {
 fn is_local_smtp_host(host: &str) -> bool {
     let h = host.to_lowercase();
     h == "localhost" || h == "mailpit" || h == "127.0.0.1" || h == "::1"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::umami_website_id;
+
+    #[test]
+    fn a_website_id_that_could_carry_markup_is_refused() {
+        let id = "af413d12-39d7-4060-bc8d-6856f5b74ae1";
+        assert_eq!(
+            umami_website_id(Some(format!("  {id}  "))).as_deref(),
+            Some(id)
+        );
+        assert_eq!(umami_website_id(Some(String::new())), None);
+        assert_eq!(umami_website_id(None), None);
+        // The value lands inside an HTML attribute; a quote must never reach it.
+        assert_eq!(
+            umami_website_id(Some(r#"x"><script>alert(1)</script>"#.to_string())),
+            None
+        );
+    }
 }

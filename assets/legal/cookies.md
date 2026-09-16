@@ -1,6 +1,6 @@
 # Cookie Policy
 
-**Effective Date:** [Last Updated: September 6, 2026]
+**Effective Date:** [Last Updated: September 16, 2026]
 **Applies to:** [https://thermite.rs](https://thermite.rs)
 
 ---
@@ -9,7 +9,7 @@
 
 This Cookie Policy explains how **Hauke Jung** ("we," "us," or "our") uses cookies and similar technologies on **Thermite** (the "Service").
 
-The short version: we use **one cookie**, it keeps you signed in, and there is nothing else. We run no analytics product, no advertising or marketing trackers, and no third-party tracking scripts. That is why you see no cookie banner — there is no non-essential storage to ask you about.
+The short version: we use **one cookie**, it keeps you signed in, and there is nothing else. Our web analytics (Umami, self-hosted) are **cookieless** and use no local storage at all, and we run no advertising or marketing trackers and no third-party tracking scripts. That is why you see no cookie banner — there is no non-essential storage to ask you about.
 
 This policy should be read together with our [Privacy Policy](https://thermite.rs/legal/privacy).
 
@@ -39,7 +39,7 @@ Cookies may be:
 
 The `theme` value is listed for completeness because §25 TDDDG covers storage on your device generally, not only cookies. It is **never transmitted to our servers** and contains nothing but the strings `light` or `dark`.
 
-**We set no analytics, advertising, personalization or marketing cookies of any kind**, and we embed no third-party scripts that could set one.
+**We set no analytics, advertising, personalization or marketing cookies of any kind**, and we embed no third-party scripts that could set one. Our analytics are described in Section 4; they store nothing on your device, so they appear in no row of this table.
 
 ---
 
@@ -48,8 +48,9 @@ The `theme` value is listed for completeness because §25 TDDDG covers storage o
 | Service | Purpose | EU Data Residency | Policy |
 |---------|---------|-------------------|--------|
 | **FerrisKey** | User authentication and login management | Self-hosted on our own infrastructure | Covered by our Privacy Policy (no third-party processor) |
+| **Umami** | Web analytics: page views and referrers | Self-hosted on our own infrastructure | Covered by our Privacy Policy (no third-party processor) |
 
-FerrisKey runs on our own servers, so the login flow involves no external party and sets no third-party cookie. No payment provider, analytics vendor or CDN is embedded in the Service.
+Both run on our own servers, so neither involves an external party and neither sets a third-party cookie. Umami sets **no cookie at all** and stores no identifier on your device: it derives the country and a daily-rotating visitor hash from your IP address and user agent in passing, and stores neither. Its script is served from our own domain. No payment provider, third-party analytics vendor or CDN is embedded in the Service.
 
 Note that error reports submitted by your applications reach us through a direct API call from your server or client SDK — **that path uses no cookies at all**, only a DSN key. Nothing about error ingestion places storage on an end user's device.
 

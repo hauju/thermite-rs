@@ -121,6 +121,8 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
     let hsts = app_state.config.secure_cookies;
     let demo = app_state.config.demo_autologin;
     let trust_proxy = app_state.config.trust_proxy_headers;
+    // Unset: no tracker tag is written into any page, whatever UMAMI_HOST says.
+    let umami_website_id = app_state.config.umami_website_id.clone();
     // Global per-IP backstop against abuse; sensitive sub-routers add stricter quotas, and the
     // ingest paths are exempted below in favour of their own limiter. High enough that a burst
     // of asset requests from an office NAT full of dashboard users never trips it.
@@ -160,8 +162,15 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
         .merge(server::health::health_router())
         // GET /llms.txt — orientation page so an agent can discover the MCP/REST surface itself.
         .merge(server::llms::llms_router(&app_state.config.base_url))
-        // Innermost, inside the compression layer: it reads the HTML body.
-        .layer(axum::middleware::from_fn(server::seo::html_lang))
+        // GET /stats.js and POST /api/send: the self-hosted Umami tracker, proxied same-origin
+        // so ad-block lists cannot silently drop it. Both 404 unless UMAMI_HOST is set.
+        .merge(umami::proxy::routes())
+        // Innermost, inside the compression layer: it reads the HTML body, adding `lang` and
+        // the analytics tag (see src/server/seo).
+        .layer(axum::middleware::from_fn_with_state(
+            umami_website_id,
+            server::seo::patch_shell,
+        ))
         .layer(session_layer)
         // Brotli 6: 10-20% smaller than gzip at ~4 ms per page. The library default
         // (brotli 11) costs ~150 ms of CPU per 250 KiB response.

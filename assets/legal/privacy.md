@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Effective Date:** [Last Updated: September 6, 2026]
+**Effective Date:** [Last Updated: September 16, 2026]
 
 Welcome to Thermite (the "Service"). This Privacy Policy explains how **Hauke Jung** ("we," "us," or "our") collects, uses, and protects personal information in connection with our website **[https://thermite.rs](https://thermite.rs)** and related services.
 
@@ -45,7 +45,9 @@ When you sign in and use the dashboard, we automatically process:
 - Server log data, such as access times and requested paths
 - Your session cookie and, in your browser's local storage, your light/dark theme preference
 
-We run **no web analytics product**, no advertising or marketing trackers, and no third-party tracking scripts on this site.
+We use **Umami**, an open-source web analytics tool that we run **on our own infrastructure** — no third party receives this data. It records page views and referrers. It sets **no cookie** and writes nothing to your browser's local storage. Your IP address and user agent are used only in passing, to derive the country the visit came from and a visitor hash that is regenerated daily; the address itself is never stored. The script is served from our own domain.
+
+We run **no advertising or marketing trackers**, do no cross-site tracking or profiling, use none of this for advertising, and embed no third-party tracking scripts.
 
 ### c. Error Report Data Sent by Your Applications
 This is the bulk of what Thermite stores. Your applications send it through a Sentry-compatible SDK using a DSN key you generate. Section 4 sets out what it contains.
@@ -143,7 +145,7 @@ We use a single **strictly necessary** cookie: a signed session cookie that keep
 
 Your light/dark theme preference is stored in your browser's **local storage**, not in a cookie, and is never transmitted to us.
 
-We set **no analytics, advertising or tracking cookies**, and embed no third-party tracking scripts. There is nothing here to consent to beyond what is technically required to log you in, which is why the site shows no cookie banner. See our [Cookie Policy](https://thermite.rs/legal/cookies) for the full detail.
+We set **no advertising or tracking cookies**, and embed no third-party tracking scripts. Our analytics (Section 3b) are cookieless: they place no identifier on your device and keep none that could be tied back to you afterwards. There is nothing here to consent to beyond what is technically required to log you in, which is why the site shows no cookie banner. See our [Cookie Policy](https://thermite.rs/legal/cookies) for the full detail.
 
 ---
 
@@ -192,7 +194,7 @@ As a user in the European Union, you have the following rights under the **GDPR*
 If your personal data reached Thermite because a customer's application sent it in a crash report, that customer is the controller of it and is the right party to address your request to. We act on their instructions. If you contact us instead, we will forward your request to them where we can identify the relevant customer, and assist them in responding.
 
 ### Do Not Track
-Our Service currently does not respond to "Do Not Track" browser signals. It also runs no tracking for such a signal to disable.
+Our Service does not respond to "Do Not Track" browser signals. Our analytics are cookieless and store no persistent identifier, so there is no profile for such a signal to switch off.
 
 ### CCPA (California)
 If you are a California resident, you may have similar rights under the **California Consumer Privacy Act (CCPA)**. Requests can be made using the contact information below.

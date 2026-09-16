@@ -152,6 +152,17 @@ server. Anything server-side needs `--no-default-features --features server`, wh
       pages collect addresses (into the `waitlist` table) instead of sending visitors to a closed
       registration.
   </Accordion>
+  <Accordion title="Web analytics">
+    - `UMAMI_HOST` — base URL of your own [Umami](https://umami.is) instance. The tracker is
+      proxied from your origin (`/stats.js` and `/api/send`), because the ad-block lists carry
+      `umami.*` hostnames and a cross-origin tag would be dropped for a large share of visitors
+      without anything looking broken.
+    - `UMAMI_WEBSITE_ID` — the id Umami issued for this site, written into the page's tracker
+      tag at render time.
+
+    Both are read at runtime, and with either unset the page carries no tracker and the server
+    calls nothing: the published image is the same one every self-hoster pulls.
+  </Accordion>
   <Accordion title="Alerting">
     - `THERMITE_ALERT_EMAIL` — comma-separated recipients
     - `THERMITE_ALERT_WEBHOOK` — one JSON object POSTed per alert

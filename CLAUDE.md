@@ -461,11 +461,23 @@ drift.
 link-preview crawlers honour it and the link would lose its card) and `sitemap.xml` (the marketing
 and legal pages plus every docs page, read from the docs registry; absent on the demo instance).
 The pages behind the login, and every page of the demo instance, carry `X-Robots-Tag: noindex`
-instead, set in the same layer as the hardening headers. The same module patches `lang="en"` onto
-the SSR shell's `<html>` on the way out — inside the compression layer, and buffering the body,
-which is free only while SSR streaming stays off — rather than carrying a copy of `dx`'s index
-template. `/` and `/pricing` add `SoftwareApplication` JSON-LD sharing one `@id`, with monthly
-`Offer`s; the pricing offers repeat the card literals on purpose, so keep the two in step.
+instead, set in the same layer as the hardening headers. The same module patches the SSR shell on
+the way out — `lang="en"` onto its bare `<html>`, and the analytics tag before `</head>` — inside
+the compression layer, and buffering the body, which is free only while SSR streaming stays off,
+rather than carrying a copy of `dx`'s index template. `/` and `/pricing` add
+`SoftwareApplication` JSON-LD sharing one `@id`, with monthly `Offer`s; the pricing offers repeat
+the card literals on purpose, so keep the two in step.
+
+**Analytics is self-hosted Umami** (`dx-umami`), configured by `UMAMI_HOST` and
+`UMAMI_WEBSITE_ID` at runtime and never at compile time: the image on ghcr.io is the one every
+self-hoster pulls, so an instance with both unset must ship no tracker tag and call nowhere. The
+tag is written by the SSR patch middleware rather than rendered from the Dioxus tree — the client
+bundle cannot know an operator's configuration, and a head component that appears conditionally
+drifts the hydration entries under it. The tracker is proxied same-origin at `/stats.js` and
+`/api/send`, because `umami.*` hostnames sit on the standard ad-block lists and a cross-origin tag
+fails invisibly: the page works and the numbers are quietly wrong. thermite.rs and
+demo.thermite.rs each carry their own website id, so the demo's traffic never lands in the
+product's numbers.
 
 **The docs are readable without rendering them.** `server::seo` serves every docs page as
 Markdown at `/docs/<path>.md` (each page links to its own with `rel="alternate"`) and the whole
@@ -597,7 +609,8 @@ image's `apt` layer — nothing of the application is emulated. Published to
 Copy `.env.example` to `.env`. Key variables: `DATABASE_URL`, `BASE_URL`, `SESSION_SECRET` (hex, 64+
 bytes), the `FERRISKEY_*` set, SMTP settings, optional `THERMITE_MAX_ENVELOPE_BYTES` /
 `THERMITE_RATE_LIMIT_PER_MINUTE`, optional `THERMITE_DSN` + `THERMITE_RELEASE` + `ENVIRONMENT`
-for self-reporting (see "Self-reporting" below).
+for self-reporting (see "Self-reporting" below), optional `UMAMI_HOST` + `UMAMI_WEBSITE_ID` for
+web analytics (see "Dashboard").
 
 ### Styling
 

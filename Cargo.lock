@@ -1916,6 +1916,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "dx-umami"
+version = "0.1.0"
+source = "git+https://github.com/hauju/dx-kit.git?tag=dx-umami-v0.1.0#29438bc74c60e9fc795344a019a1f4d4a73a0000"
+dependencies = [
+ "axum",
+ "hex",
+ "js-sys",
+ "reqwest 0.13.4",
+ "serde_json",
+ "sha2",
+ "tracing",
+ "web-sys",
+]
+
+[[package]]
 name = "dyn-clone"
 version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5390,6 +5405,7 @@ dependencies = [
  "dx-auth",
  "dx-crypto 0.1.0 (git+https://github.com/hauju/dx-kit.git?tag=dx-crypto-v0.1.0)",
  "dx-smtp",
+ "dx-umami",
  "flate2",
  "gloo-timers 0.3.0",
  "governor",

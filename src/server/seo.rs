@@ -1,5 +1,7 @@
 //! What a search engine is told: `robots.txt`, `sitemap.xml`, which pages are `noindex`, and
-//! the `lang` attribute Dioxus's SSR shell leaves off `<html>`.
+//! the two patches the SSR shell needs on the way out — the `lang` attribute Dioxus leaves off
+//! `<html>`, and the analytics tag, which is configured at runtime and so cannot come from the
+//! client bundle.
 //!
 //! The split follows Google's own guidance: `robots.txt` only keeps crawlers off the machine
 //! endpoints, while the pages that must stay out of the index say so with `X-Robots-Tag`. A
@@ -10,7 +12,7 @@
 
 use axum::Router;
 use axum::body::{Body, to_bytes};
-use axum::extract::Request;
+use axum::extract::{Request, State};
 use axum::http::{HeaderMap, HeaderName, HeaderValue, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
@@ -157,16 +159,23 @@ fn text(content_type: &'static str, body: impl IntoResponse) -> Response {
         .into_response()
 }
 
-/// Adds `lang="en"` to the bare `<html>` tag Dioxus's SSR shell emits, on `text/html` responses
-/// only. Patching the page on the way out beats carrying a copy of `dx`'s index template that
-/// drifts with every CLI release.
+/// Patches the SSR shell on the way out, on `text/html` responses only: `lang="en"` onto the
+/// bare `<html>` tag Dioxus emits, and — when a website id is configured — the Umami tracker
+/// tag before `</head>`. Patching the page here beats carrying a copy of `dx`'s index template
+/// that drifts with every CLI release, and it is the only place the tracker tag can come from:
+/// the client bundle is built long before an operator sets `UMAMI_WEBSITE_ID`, and a head
+/// component that renders conditionally would shift the hydration entries under it.
 ///
 /// Two things this leans on. It must sit inside the compression layer, where the body is still
 /// readable. And it buffers the whole body, which costs nothing while SSR streaming stays off
 /// (`StreamingMode::Disabled`, the default `dioxus::server::router` uses): the page is complete
 /// before its first byte is sent anyway. Enabling out-of-order streaming would need this to
 /// patch the first chunk and pass the rest through instead.
-pub async fn html_lang(request: Request, next: Next) -> Response {
+pub async fn patch_shell(
+    State(umami_website_id): State<Option<String>>,
+    request: Request,
+    next: Next,
+) -> Response {
     let response = next.run(request).await;
     let is_html = response
         .headers()
@@ -188,7 +197,16 @@ pub async fn html_lang(request: Request, next: Next) -> Response {
             return Response::from_parts(parts, Body::empty());
         }
     };
-    let Some(patched) = std::str::from_utf8(&bytes).ok().and_then(add_lang) else {
+    let Ok(html) = std::str::from_utf8(&bytes) else {
+        return Response::from_parts(parts, Body::from(bytes));
+    };
+    let mut patched = add_lang(html);
+    if let Some(id) = umami_website_id.as_deref()
+        && let Some(tagged) = add_umami_tag(patched.as_deref().unwrap_or(html), id)
+    {
+        patched = Some(tagged);
+    }
+    let Some(patched) = patched else {
         return Response::from_parts(parts, Body::from(bytes));
     };
     // The length changed; hyper derives a fresh one from the new body.
@@ -204,6 +222,19 @@ fn add_lang(html: &str) -> Option<String> {
         return None;
     }
     Some(html.replacen("<html", "<html lang=\"en\"", 1))
+}
+
+/// The document with the Umami tracker tag last in `<head>`, or `None` when there is no head
+/// to put it in. The id is validated where it is read (`config::umami_website_id`), so nothing
+/// here has to escape it.
+fn add_umami_tag(html: &str, website_id: &str) -> Option<String> {
+    let at = html.find("</head>")?;
+    let tag = format!(r#"<script defer src="/stats.js" data-website-id="{website_id}"></script>"#);
+    let mut out = String::with_capacity(html.len() + tag.len());
+    out.push_str(&html[..at]);
+    out.push_str(&tag);
+    out.push_str(&html[at..]);
+    Some(out)
 }
 
 #[cfg(test)]
@@ -240,6 +271,24 @@ mod tests {
         );
         assert_eq!(add_lang("<html lang=\"de\"><head></head></html>"), None);
         assert_eq!(add_lang("no document here"), None);
+    }
+
+    #[test]
+    fn the_tracker_tag_is_the_last_thing_in_the_head() {
+        let id = "af413d12-39d7-4060-bc8d-6856f5b74ae1";
+        assert_eq!(
+            add_umami_tag(
+                "<html><head><title>t</title></head><body></body></html>",
+                id
+            )
+            .as_deref(),
+            Some(concat!(
+                "<html><head><title>t</title>",
+                r#"<script defer src="/stats.js" data-website-id="af413d12-39d7-4060-bc8d-6856f5b74ae1"></script>"#,
+                "</head><body></body></html>"
+            ))
+        );
+        assert_eq!(add_umami_tag("no document here", id), None);
     }
 
     #[test]
