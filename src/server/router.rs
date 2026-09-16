@@ -114,8 +114,10 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
         // credential. dx-auth treats a verified one as authorization by itself.
         password_login: app_state.secrets.admin_password_hash.is_some(),
         // The version every existing account accepted under dx-auth 0.4, which hard-coded it.
-        // Bumping it re-prompts everyone on their next login.
-        tos_version: Some("1.0".to_string()),
+        // Bumping it re-prompts everyone on their next login. The terms are the hosted
+        // service's, and the pages they link to exist only with the site on: a self-hosted
+        // instance has no terms step at all.
+        tos_version: app_state.config.site.then(|| "1.0".to_string()),
     };
 
     let user_store = Arc::new(AppAuthUserStore::new(app_state.clone()));
