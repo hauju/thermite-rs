@@ -25,37 +25,6 @@ const HERO_EMBERS_ON_MOUNT: &str = concat!(
     "}"
 );
 
-/// How Thermite compares with the two things a reader is already choosing between: label, then
-/// Thermite, Sentry's hosted service and Sentry's self-hosted stack. Facts only — the stack and
-/// the licence are what Sentry itself publishes.
-const COMPARISON: [(&str, &str, &str, &str); 5] = [
-    (
-        "Ingest",
-        "Any Sentry SDK",
-        "Any Sentry SDK",
-        "Any Sentry SDK",
-    ),
-    (
-        "Runs on",
-        "One binary + Postgres",
-        "Their cloud",
-        "Kafka, ClickHouse, Redis, Snuba, Relay and more",
-    ),
-    (
-        "Priced by",
-        "Errors sent",
-        "Errors sent plus seats",
-        "Your ops time",
-    ),
-    (
-        "Agent triage over MCP",
-        "Built in",
-        "Not offered",
-        "Not offered",
-    ),
-    ("License", "AGPL-3.0", "Proprietary", "FSL"),
-];
-
 /// The questions that decide whether someone switches, and their answers. One array, read by
 /// both the cards and the `FAQPage` structured data, so the answer a search result shows is the
 /// answer on the page.
@@ -292,43 +261,6 @@ pub fn Home() -> Element {
                         description: "Crash-free rate per release, counted from SDK sessions, so a busy release does not read as a broken one.",
                     }
                 }
-                }
-
-                // The reader is already on Sentry, so the honest framing is what changes rather
-                // than what is wrong with it: the wire protocol is the same on all three columns.
-                div { class: "w-full mt-20",
-                    div { class: "text-center mb-8",
-                        h2 { class: "text-2xl sm:text-3xl font-bold tracking-tight",
-                            "Sentry, without the parts you were paying for"
-                        }
-                        p { class: "text-base-content/60 mt-2 max-w-xl mx-auto",
-                            "Your SDKs stay exactly where they are. What changes is what it takes to run and what it is priced on."
-                        }
-                    }
-                    // Scrolls sideways rather than wrapping: four columns of prose do not fold
-                    // into a phone, and a broken table is harder to read than a scrolled one.
-                    div { class: "overflow-x-auto rounded-xl border border-base-300 bg-base-200",
-                        table { class: "table",
-                            thead {
-                                tr {
-                                    th { }
-                                    th { "Thermite" }
-                                    th { "Sentry SaaS" }
-                                    th { "Sentry self-hosted" }
-                                }
-                            }
-                            tbody {
-                                for (label , thermite , saas , self_hosted) in COMPARISON {
-                                    tr { key: "{label}",
-                                        th { class: "font-medium whitespace-nowrap", "{label}" }
-                                        td { "{thermite}" }
-                                        td { class: "text-base-content/60", "{saas}" }
-                                        td { class: "text-base-content/60", "{self_hosted}" }
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
 
                 // The questions that come up before a switch, answered on the page rather than

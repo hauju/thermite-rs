@@ -6,7 +6,7 @@ use crate::components::meta::{JsonLd, PageMeta, offer, software_application};
 use crate::routes::Route;
 use crate::waitlist::{WaitlistForm, waitlist_open};
 
-const DESCRIPTION: &str = "Priced by errors, not by seats. Every plan includes the full triage loop, the MCP server and the REST API; only the volume you send changes.";
+const DESCRIPTION: &str = "Priced by errors, and nothing else. Every plan includes the full triage loop, the MCP server and the REST API, for as many people and agents as you like; only the volume you send changes.";
 
 /// The volumes the slider snaps to. Tiered pricing gets a tiered control: a continuous slider
 /// would promise a price for 37,000 errors that no plan has.
@@ -24,10 +24,11 @@ fn stop_label(stop: usize) -> &'static str {
 
 /// Pricing page.
 ///
-/// Priced by error volume rather than by seat: the thing reading Thermite is usually an agent, and
-/// charging per human for that makes no sense. Every plan carries the whole product — the tiers
-/// differ only in how many errors they accept, so the page leads with that one number: a slider
-/// sets it and the plan that fits lights up.
+/// Error volume is the only dimension: no per-seat line, and no separate meter for spans, replays
+/// or an AI budget, because the thing reading Thermite is usually an agent and none of those are
+/// things it sends. Every plan carries the whole product — the tiers differ only in how many errors
+/// they accept, so the page leads with that one number: a slider sets it and the plan that fits
+/// lights up.
 #[component]
 pub fn Pricing() -> Element {
     // Starts on the middle plan, so a reader who never touches the slider still sees a
@@ -75,10 +76,10 @@ pub fn Pricing() -> Element {
                 div { class: "flex flex-col items-center text-center mb-10",
                     h1 { class: "landing-hero-rise text-4xl sm:text-5xl font-black tracking-tight mb-5",
                         "Priced by errors, "
-                        span { class: "landing-gradient-text", "not by seats." }
+                        span { class: "landing-gradient-text", "and nothing else." }
                     }
                     p { class: "landing-hero-rise hero-delay-1 text-lg text-base-content/70 max-w-2xl",
-                        "Your agent is not a seat. Every plan includes the full triage loop, the MCP server and the REST API — the only thing that changes is how many errors you send."
+                        "No per-seat line, no second meter for spans or replays or an AI budget. Every plan includes the full triage loop, the MCP server and the REST API, for as many people and agents as you like — the only thing that changes is how many errors you send."
                     }
                 }
 

@@ -35,7 +35,7 @@ pub fn About() -> Element {
                         " — a full-stack developer who built Thermite because error trackers were built for a world where a human reads every stack trace."
                     }
                     p { class: "landing-hero-rise hero-delay-2 text-lg text-base-content/70 leading-relaxed",
-                        "I spent years watching Sentry issues pile up: hundreds unread, alerts everyone had muted, and a bill priced per seat for a tool one person ever opened. Then coding agents got good enough to read a stack trace, and the tracker was the thing in the way. Thermite is my answer: Sentry's wire protocol, one binary and a Postgres, and an MCP server that hands every new issue to your own agent — AGPL, so you can run it wherever you like."
+                        "I spent years watching Sentry issues pile up: hundreds unread, alerts everyone had muted, and a bill that grew with our traffic for a tool one person ever opened. Then coding agents got good enough to read a stack trace, and the tracker was the thing in the way. Thermite is my answer: Sentry's wire protocol, one binary and a Postgres, and an MCP server that hands every new issue to your own agent — AGPL, so you can run it wherever you like."
                     }
                     div { class: "landing-hero-rise hero-delay-3 flex flex-wrap gap-3 pt-4",
                         a {
