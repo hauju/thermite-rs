@@ -414,11 +414,19 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                                     }
                                 }
                                 }
-                                RateChart {
-                                    counts: stats.series.iter().map(|b| b.count).collect::<Vec<_>>(),
-                                    labels: stats.series.iter().map(|b| b.bucket.clone()).collect::<Vec<_>>(),
-                                    resolution: stats.resolution.clone(),
-                                    dropped: stats.series.iter().map(|b| b.dropped).collect::<Vec<_>>(),
+                                // Desktop only. On a phone the card above plus the filters put
+                                // the first issue about 640px down, which is a screen and a half
+                                // of scrolling before the list this page is for. The chart is
+                                // the fattest part of that and the least urgent: it is context
+                                // for a project you are already looking at, not the triage. The
+                                // counts and the window control stay at every width.
+                                div { class: "hidden sm:block",
+                                    RateChart {
+                                        counts: stats.series.iter().map(|b| b.count).collect::<Vec<_>>(),
+                                        labels: stats.series.iter().map(|b| b.bucket.clone()).collect::<Vec<_>>(),
+                                        resolution: stats.resolution.clone(),
+                                        dropped: stats.series.iter().map(|b| b.dropped).collect::<Vec<_>>(),
+                                    }
                                 }
                             }
                         }
@@ -480,6 +488,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                         if envs.len() > 1 {
                             select {
                                 class: "select select-sm select-bordered w-auto",
+                                "aria-label": "Filter by environment",
                                 onchange: move |e| {
                                     reset_list();
                                     environment.set(e.value());
@@ -517,6 +526,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                         if !comps.is_empty() && tag().is_none() {
                             select {
                                 class: "select select-sm select-bordered w-auto",
+                                "aria-label": "Filter by component",
                                 onchange: move |e| {
                                     reset_list();
                                     component.set(e.value());
