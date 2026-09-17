@@ -59,7 +59,7 @@ pub fn Playground() -> Element {
     };
 
     rsx! {
-        div { class: "max-w-4xl",
+        div { class: "max-w-4xl mx-auto",
             h1 { class: "text-2xl font-bold mb-1", "Playground" }
             p { class: "text-base-content/60 mb-6",
                 "Raise synthetic errors to fill a project with realistic data. Each button posts a "
@@ -85,13 +85,15 @@ pub fn Playground() -> Element {
                     div { class: "card bg-base-200 border border-base-300 mb-6",
                         div { class: "card-body gap-3",
                             div { class: "text-sm font-medium", "Send as" }
-                            div { class: "flex flex-wrap gap-2",
-                                label { class: "form-control",
-                                    div { class: "label py-1",
-                                        span { class: "label-text text-xs opacity-60", "Project" }
-                                    }
+                            // Explicit `flex flex-col`, not `form-control`: DaisyUI 5 dropped
+                            // that class, so the label and its field were laying themselves out
+                            // side by side in this wrapping row — the label sat left of the box
+                            // on every field the wrap did not happen to break.
+                            div { class: "flex flex-wrap items-end gap-3",
+                                label { class: "flex flex-col gap-1",
+                                    span { class: "text-xs text-base-content/60", "Project" }
                                     select {
-                                        class: "select select-sm select-bordered min-w-48",
+                                        class: "select select-sm min-w-48",
                                         value: selected().map(|id| id.to_string()).unwrap_or_default(),
                                         onchange: move |e| selected.set(e.value().parse().ok()),
                                         for project in list.iter() {
@@ -99,35 +101,29 @@ pub fn Playground() -> Element {
                                         }
                                     }
                                 }
-                                label { class: "form-control",
-                                    div { class: "label py-1",
-                                        span { class: "label-text text-xs opacity-60", "Environment" }
-                                    }
+                                label { class: "flex flex-col gap-1",
+                                    span { class: "text-xs text-base-content/60", "Environment" }
                                     input {
-                                        class: "input input-sm input-bordered w-40",
+                                        class: "input input-sm w-40",
                                         value: "{environment}",
                                         oninput: move |e| environment.set(e.value()),
                                     }
                                 }
-                                label { class: "form-control",
-                                    div { class: "label py-1",
-                                        span { class: "label-text text-xs opacity-60", "Release" }
-                                    }
+                                label { class: "flex flex-col gap-1",
+                                    span { class: "text-xs text-base-content/60", "Release" }
                                     input {
-                                        class: "input input-sm input-bordered w-40",
+                                        class: "input input-sm w-40",
                                         value: "{release}",
                                         oninput: move |e| release.set(e.value()),
                                     }
                                 }
-                                label { class: "form-control",
-                                    div { class: "label py-1",
-                                        span { class: "label-text text-xs opacity-60", "Events per click" }
-                                    }
+                                label { class: "flex flex-col gap-1",
+                                    span { class: "text-xs text-base-content/60", "Events per click" }
                                     input {
                                         r#type: "number",
                                         min: "1",
                                         max: "25",
-                                        class: "input input-sm input-bordered w-28",
+                                        class: "input input-sm w-28",
                                         value: "{burst}",
                                         oninput: move |e| {
                                             burst.set(e.value().parse().unwrap_or(1).clamp(1, 25))
@@ -142,27 +138,33 @@ pub fn Playground() -> Element {
                         }
                     }
 
-                    // ── One button per kind ──
-                    div { class: "grid gap-3 sm:grid-cols-2",
-                        for kind in DEMO_KINDS.iter() {
-                            div { class: "card bg-base-200 border border-base-300",
-                                div { class: "card-body gap-2",
+                    // ── One row per kind ──
+                    //
+                    // A list, not a card grid: there is an odd number of kinds, so two columns
+                    // left the last one beside a hole, and five cards of identical shape carried
+                    // no more than five rows do in a third of the height. Outlined buttons
+                    // because five solid primaries side by side rank nothing above anything.
+                    div { class: "card bg-base-200 border border-base-300 overflow-hidden",
+                        for (i , kind) in DEMO_KINDS.iter().enumerate() {
+                            div {
+                                class: if i == 0 { "flex items-center gap-4 px-4 py-3" } else { "flex items-center gap-4 px-4 py-3 border-t border-base-300" },
+                                div { class: "flex-1 min-w-0",
                                     div { class: "font-medium text-sm", "{kind.label}" }
-                                    p { class: "text-xs text-base-content/60 flex-1",
+                                    p { class: "text-xs text-base-content/60 mt-0.5",
                                         "{kind.description}"
                                     }
-                                    button {
-                                        class: "btn btn-sm btn-primary self-start",
-                                        disabled: sending().is_some() || selected().is_none(),
-                                        onclick: {
-                                            let id = kind.id.to_string();
-                                            move |_| raise(id.clone())
-                                        },
-                                        if sending().as_deref() == Some(kind.id) {
-                                            span { class: "loading loading-spinner loading-xs" }
-                                        }
-                                        "Raise"
+                                }
+                                button {
+                                    class: "btn btn-sm btn-outline shrink-0",
+                                    disabled: sending().is_some() || selected().is_none(),
+                                    onclick: {
+                                        let id = kind.id.to_string();
+                                        move |_| raise(id.clone())
+                                    },
+                                    if sending().as_deref() == Some(kind.id) {
+                                        span { class: "loading loading-spinner loading-xs" }
                                     }
+                                    "Raise"
                                 }
                             }
                         }
@@ -182,16 +184,9 @@ pub fn Playground() -> Element {
                     div { class: "alert alert-error", {load_error("Could not load projects", e)} }
                 },
                 None => rsx! {
-                    div { class: "grid gap-3 sm:grid-cols-2",
-                        for _ in 0..4 {
-                            div { class: "card bg-base-200 border border-base-300",
-                                div { class: "card-body gap-2",
-                                    div { class: "skeleton h-4 w-32" }
-                                    div { class: "skeleton h-3 w-full" }
-                                    div { class: "skeleton h-8 w-20" }
-                                }
-                            }
-                        }
+                    div { class: "flex flex-col gap-3",
+                        div { class: "skeleton h-28 w-full" }
+                        div { class: "skeleton h-64 w-full" }
                     }
                 },
             }
