@@ -92,6 +92,7 @@ pub fn DashboardShell() -> Element {
                                 label {
                                     r#for: "dashboard-drawer",
                                     class: "btn btn-square btn-ghost drawer-button",
+                                    "aria-label": "Open the navigation menu",
                                     svg {
                                         xmlns: "http://www.w3.org/2000/svg",
                                         fill: "none",

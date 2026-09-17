@@ -107,6 +107,10 @@ pub fn Pricing() -> Element {
                             value: "{selected}",
                             class: "range range-primary w-full",
                             aria_label: "Errors a month",
+                            // The value is the index of a stop, so the control announced "1 of
+                            // 3" — the one number on it that means nothing. This says what the
+                            // handle is actually sitting on.
+                            "aria-valuetext": "{stop_label(selected())} errors a month",
                             oninput: move |e| selected.set(e.value().parse().unwrap_or(1)),
                         }
                         div { class: "flex justify-between px-1 text-xs text-base-content/50",

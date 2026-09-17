@@ -73,6 +73,7 @@ pub fn DocsShell() -> Element {
                     div { class: "flex-1 gap-2",
                         button {
                             class: "btn btn-ghost btn-sm btn-square lg:hidden docs-menu-btn",
+                            "aria-label": "Open the documentation menu",
                             onclick: move |_| drawer_open.toggle(),
                             Icon { class: "size-5", icon: LdMenu }
                         }
