@@ -700,7 +700,10 @@ fn AnalysisCard(analysis: Analysis) -> Element {
                     span { class: "text-primary", Icon { icon: LdBot, width: 16, height: 16 } }
                     span { class: "badge badge-sm badge-primary badge-outline", "{analysis.source}" }
                     if !confidence.is_empty() {
-                        span { class: "badge badge-sm {confidence_class}", "{confidence} confidence" }
+                        // Outlined, like the source beside it. As a solid fill it was the only
+                        // green in the product and the brightest thing on the page, so it
+                        // out-shouted "Review the fix" — the one action this card exists for.
+                        span { class: "badge badge-sm {confidence_class} badge-outline", "{confidence} confidence" }
                     }
                     if let Some(release) = &analysis.release {
                         span { class: "font-mono text-base-content/50", "against {release}" }
