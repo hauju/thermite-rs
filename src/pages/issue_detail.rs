@@ -15,6 +15,33 @@ use crate::models::repo_links::{SourceLinks, commit_url, compare_url};
 use crate::routes::{IssueFilters, Route};
 use crate::version::load_error;
 
+/// Which section the reader is in, for the "on this page" nav. One passive scroll listener over
+/// the four anchors rather than an observer per section: the section whose top has most recently
+/// passed under the header wins, which is also right when the rail puts `activity` beside the
+/// main column instead of after it. Above the first of them — the whole of the header — the
+/// first one is current, because a nav with nothing marked reads as one that does not work.
+const SECTION_SPY: &str = r#"
+    window.__thermiteSectionSpy = () => {
+        let best = '', first = '', top = -1e9;
+        for (const id of ['analysis', 'event', 'breadcrumbs', 'activity']) {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            if (!first) first = id;
+            const y = el.getBoundingClientRect().top;
+            if (y <= 96 && y > top) { best = id; top = y; }
+        }
+        best = best || first;
+        if (best !== window.__thermiteSection) { window.__thermiteSection = best; dioxus.send(best); }
+    };
+    document.addEventListener('scroll', window.__thermiteSectionSpy, { passive: true });
+    window.__thermiteSectionSpy();
+"#;
+const SECTION_SPY_REMOVE: &str = r#"
+    document.removeEventListener('scroll', window.__thermiteSectionSpy);
+    delete window.__thermiteSectionSpy;
+    delete window.__thermiteSection;
+"#;
+
 #[component]
 pub fn IssueDetail(id: i64) -> Element {
     let mut issue = use_resource(move || async move { issue_detail(id).await });
@@ -65,6 +92,22 @@ pub fn IssueDetail(id: i64) -> Element {
             Err(e) => show_toast(format!("Could not update: {e}"), ToastLevel::Error),
         }
     };
+
+    let mut section = use_signal(String::new);
+    use_future(move || async move {
+        if !cfg!(feature = "web") {
+            return;
+        }
+        let mut seen = document::eval(SECTION_SPY);
+        while let Ok(id) = seen.recv::<String>().await {
+            section.set(id);
+        }
+    });
+    use_drop(move || {
+        if cfg!(feature = "web") {
+            let _ = document::eval(SECTION_SPY_REMOVE);
+        }
+    });
 
     match &*issue.read_unchecked() {
         None => rsx! {
@@ -202,19 +245,28 @@ pub fn IssueDetail(id: i64) -> Element {
                             }
                         }
                         // The rail and the analyses can still push a section below the fold;
-                        // these put each one a click away.
-                        nav { class: "flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm",
-                            "aria-label": "Sections",
+                        // these put each one a click away, and the rule under the current one
+                        // says where the reader already is.
+                        nav { class: "flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 border-b border-base-300 text-sm",
+                            "aria-label": "On this page",
+                            // The listener is installed while the page is still a skeleton, so
+                            // its first run finds no sections. This one lands with them.
+                            onmounted: move |_| {
+                                let _ = document::eval("window.__thermiteSectionSpy?.();");
+                            },
+                            span { class: "text-xs uppercase tracking-wide text-base-content/40 pb-2 mr-1",
+                                "On this page"
+                            }
                             if !detail.analyses.is_empty() || can_write {
-                                JumpLink { target: "analysis", label: "Analysis" }
+                                JumpLink { target: "analysis", label: "Analysis", current: section() }
                             }
                             if let Some(latest) = &detail.latest_event {
-                                JumpLink { target: "event", label: "Stack trace" }
+                                JumpLink { target: "event", label: "Stack trace", current: section() }
                                 if !latest.breadcrumbs.is_empty() {
-                                    JumpLink { target: "breadcrumbs", label: "Breadcrumbs" }
+                                    JumpLink { target: "breadcrumbs", label: "Breadcrumbs", current: section() }
                                 }
                             }
-                            JumpLink { target: "activity", label: "Activity" }
+                            JumpLink { target: "activity", label: "Activity", current: section() }
                         }
                     }
 
@@ -344,11 +396,16 @@ pub fn IssueDetail(id: i64) -> Element {
 /// An in-page link that scrolls rather than navigates: a bare `href="#x"` would hand the hash
 /// to the router, and this page's route declares none.
 #[component]
-fn JumpLink(target: &'static str, label: &'static str) -> Element {
+fn JumpLink(target: &'static str, label: &'static str, current: String) -> Element {
+    let active = if current == target {
+        "border-primary text-primary"
+    } else {
+        "border-transparent text-base-content/60 hover:text-base-content hover:border-base-content/30"
+    };
     rsx! {
         a {
             href: "#{target}",
-            class: "text-base-content/60 hover:text-base-content underline-offset-4 hover:underline",
+            class: "-mb-px pb-2 border-b-2 transition-colors {active}",
             onclick: move |e| {
                 e.prevent_default();
                 let _ = document::eval(&format!(
@@ -599,11 +656,12 @@ fn NoteForm(issue_id: i64, on_posted: EventHandler<()>) -> Element {
 
 #[component]
 fn AnalysisCard(analysis: Analysis) -> Element {
-    // A person wrote this: no confidence, no fix, just the text — on the secondary hue so it
-    // reads as a different voice from the agents' cards.
+    // A person wrote this: no confidence, no fix, just the text. The icon and the badge carry
+    // the secondary hue, which is enough to tell it from an agent's card — the card itself is
+    // shaped like every other card on the page.
     if analysis.note {
         return rsx! {
-            div { class: "card bg-base-200 border border-base-300 border-l-4 border-l-secondary",
+            div { class: "card bg-base-200 border border-base-300",
                 div { class: "card-body gap-2",
                     div { class: "flex items-center gap-2 flex-wrap text-xs",
                         span { class: "text-secondary", Icon { icon: LdUserRound, width: 16, height: 16 } }
@@ -629,7 +687,7 @@ fn AnalysisCard(analysis: Analysis) -> Element {
     };
 
     rsx! {
-        div { class: "card bg-base-200 border border-base-300 border-l-4 border-l-primary",
+        div { class: "card bg-base-200 border border-base-300",
             div { class: "card-body gap-2",
                 div { class: "flex items-center gap-2 flex-wrap text-xs",
                     span { class: "text-primary", Icon { icon: LdBot, width: 16, height: 16 } }
