@@ -125,11 +125,6 @@ pub fn Home() -> Element {
             div { class: "container relative mx-auto px-4 pt-20 pb-16 max-w-4xl",
                 // Hero
                 div { class: "flex flex-col items-center text-center",
-                    span { class: "landing-hero-rise inline-flex items-center gap-2 rounded-full border border-base-300 bg-base-200/60 px-3 py-1 text-xs font-medium text-base-content/70 mb-8",
-                        Icon { icon: LdServer, width: 14, height: 14 }
-                        "Sentry-compatible, self-hosted"
-                    }
-
                     div {
                         id: "hero-brand",
                         class: "landing-hero-rise hero-delay-1 inline-flex items-center gap-4 mb-10",
@@ -186,7 +181,7 @@ pub fn Home() -> Element {
                     pre { class: "landing-hero-rise hero-delay-4 mt-10 w-full max-w-xl overflow-x-auto rounded-xl border border-base-300 bg-base-200 px-5 py-4 text-left font-mono text-sm",
                         code {
                             span { class: "text-base-content/40", "# the only change" }
-                            "\nSENTRY_DSN=https://<key>@thermite.example.com/1"
+                            "\nSENTRY_DSN=https://<key>@thermite.rs/1"
                         }
                     }
                 }
