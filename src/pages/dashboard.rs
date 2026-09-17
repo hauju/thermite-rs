@@ -2,11 +2,12 @@
 
 use dioxus::prelude::*;
 
+use crate::components::level_icon::LevelIcon;
 use crate::components::logo::ThermiteMark;
 use crate::components::sparkline::Sparkline;
 use crate::components::toast::{ToastLevel, show_toast};
 use crate::errors_data::{dead_letters, project_overview, recent_issues, retry_alert};
-use crate::models::errors::{DeadLetterRow, FeedRow, ProjectOverviewRow, level_class, thousands};
+use crate::models::errors::{DeadLetterRow, FeedRow, ProjectOverviewRow, thousands};
 use crate::routes::Route;
 use crate::version::load_error;
 
@@ -159,7 +160,6 @@ fn Totals(rows: Vec<ProjectOverviewRow>) -> Element {
 /// One abandoned alert, with the retry as its one action.
 #[component]
 fn DeadLetterCard(row: DeadLetterRow, on_retried: EventHandler<()>) -> Element {
-    let badge = level_class(&row.level);
     let id = row.id;
     let mut retrying = use_signal(|| false);
 
@@ -169,7 +169,7 @@ fn DeadLetterCard(row: DeadLetterRow, on_retried: EventHandler<()>) -> Element {
                 div { class: "flex-1 min-w-0",
                     div { class: "flex items-center gap-2 flex-wrap",
                         span { class: "badge badge-sm badge-neutral", "{row.project_name}" }
-                        span { class: "badge badge-sm {badge}", "{row.level}" }
+                        LevelIcon { level: row.level.clone() }
                         span { class: "badge badge-sm badge-neutral",
                             if row.kind == "regression" { "regression" } else { "new issue" }
                         }
@@ -215,8 +215,6 @@ fn DeadLetterCard(row: DeadLetterRow, on_retried: EventHandler<()>) -> Element {
 /// One feed row: which project, what kind of news, and the issue — linking straight to it.
 #[component]
 fn FeedCard(item: FeedRow) -> Element {
-    let badge = level_class(&item.level);
-
     rsx! {
         Link {
             to: Route::IssueDetail { id: item.issue_id },
@@ -225,7 +223,7 @@ fn FeedCard(item: FeedRow) -> Element {
                 div { class: "flex-1 min-w-0",
                     div { class: "flex items-center gap-2 flex-wrap",
                         span { class: "badge badge-sm badge-neutral", "{item.project_name}" }
-                        span { class: "badge badge-sm {badge}", "{item.level}" }
+                        LevelIcon { level: item.level.clone() }
                         if item.kind == "regression" {
                             span { class: "badge badge-sm badge-error badge-outline", "regression" }
                         } else {

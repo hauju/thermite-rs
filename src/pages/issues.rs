@@ -3,11 +3,12 @@
 use dioxus::prelude::*;
 use dioxus_free_icons::{
     Icon,
-    icons::ld_icons::{LdCopy, LdSettings},
+    icons::ld_icons::{LdBot, LdCopy, LdSettings},
 };
 
 use crate::UserAuthState;
 use crate::components::copy_dsn::CopyDsn;
+use crate::components::level_icon::LevelIcon;
 use crate::components::sparkline::{RateChart, Sparkline};
 use crate::components::toast::{ToastLevel, show_toast, sleep};
 use std::collections::BTreeSet;
@@ -16,9 +17,7 @@ use crate::errors_data::{
     components, environments, get_project, list_issues, list_monitors, project_stats,
     release_health, set_issues_status,
 };
-use crate::models::errors::{
-    IssueQuery, IssueRow, MonitorRow, ProjectSummary, ReleaseHealthRow, level_class,
-};
+use crate::models::errors::{IssueQuery, IssueRow, MonitorRow, ProjectSummary, ReleaseHealthRow};
 use crate::routes::{IssueFilters, Route};
 use crate::version::load_error;
 
@@ -934,7 +933,6 @@ fn IssueCard(
     highlighted: bool,
     selectable: bool,
 ) -> Element {
-    let badge = level_class(&row.level);
     let id = row.id;
     let checked = selected.read().contains(&id);
     let border = if checked {
@@ -972,7 +970,7 @@ fn IssueCard(
                     class: "flex flex-1 items-center gap-4 min-w-0",
                 div { class: "flex-1 min-w-0",
                     div { class: "flex items-center gap-2 flex-wrap",
-                        span { class: "badge badge-sm {badge}", "{row.level}" }
+                        LevelIcon { level: row.level.clone() }
                         if row.status != "unresolved" {
                             span { class: "badge badge-sm badge-neutral", "{row.status}" }
                         }
@@ -989,14 +987,17 @@ fn IssueCard(
                                     "agent working"
                                 }
                             },
-                            Some("queued") => rsx! {
-                                span { class: "text-xs text-base-content/40", "awaiting triage" }
-                            },
                             _ => rsx! {},
                         }
                         // Signals that an agent already did the work of diagnosing this.
                         if row.has_analysis {
-                            span { class: "badge badge-sm badge-primary badge-outline", "analysed" }
+                            span {
+                                class: "text-primary shrink-0 inline-flex",
+                                title: "An agent has posted a diagnosis",
+                                "aria-label": "Analysed",
+                                role: "img",
+                                Icon { icon: LdBot, width: 15, height: 15 }
+                            }
                         }
                     }
                     div { class: "font-medium line-clamp-2 sm:truncate mt-1", "{row.title}" }

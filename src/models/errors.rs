@@ -361,7 +361,10 @@ pub fn level_class(level: &str) -> &'static str {
         "error" => "badge-error",
         "warning" => "badge-warning",
         "info" => "badge-info",
-        _ => "badge-ghost",
+        // `debug`, and anything an SDK invented. Not `badge-ghost`: DaisyUI resolves it to
+        // base-200, which is the fill of every card this badge is rendered on — it came out at
+        // 1.00:1, a badge nobody could see.
+        _ => "badge-neutral",
     }
 }
 
