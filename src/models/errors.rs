@@ -387,6 +387,18 @@ mod convert {
             .map(str::to_string)
     }
 
+    /// A breadcrumb's `timestamp`, normalised to RFC 3339 so the page can read it.
+    ///
+    /// SDKs send it in every shape an event timestamp comes in — sentry-python floats epoch
+    /// seconds, the browser SDK writes a string — so this goes through the same parser the event's
+    /// own timestamp does rather than only accepting the string case, which left the whole
+    /// timeline unstamped for half the SDKs. Unclamped: a breadcrumb mints no rollup bucket, and
+    /// the page renders it as an offset from the error anyway.
+    fn crumb_time(value: &Value) -> Option<String> {
+        thermite_core::protocol::event::parse_timestamp(value.get("timestamp"))
+            .map(|ts| ts.to_rfc3339())
+    }
+
     fn lines(value: &Value, key: &str) -> Vec<String> {
         value
             .get(key)
@@ -796,7 +808,7 @@ mod convert {
                 .breadcrumbs
                 .iter()
                 .map(|value| Breadcrumb {
-                    timestamp: text(value, "timestamp"),
+                    timestamp: crumb_time(value),
                     category: text(value, "category").or_else(|| text(value, "type")),
                     level: text(value, "level"),
                     message: text(value, "message"),
@@ -870,6 +882,33 @@ mod convert {
             assert_eq!(ago(now - chrono::Duration::days(5), now), "5d ago");
             // A client clock ahead of the event must not print a negative age.
             assert_eq!(ago(now + chrono::Duration::minutes(5), now), "just now");
+        }
+
+        #[test]
+        fn a_breadcrumb_is_stamped_whichever_shape_the_sdk_sent() {
+            let at = |v: serde_json::Value| crumb_time(&serde_json::json!({ "timestamp": v }));
+            let whole = chrono::DateTime::from_timestamp(1_799_000_000, 0)
+                .unwrap()
+                .to_rfc3339();
+
+            // sentry-python and the Rust SDK float epoch seconds — the case that used to come
+            // back None and leave the whole timeline unstamped.
+            assert!(
+                at(serde_json::json!(1_799_000_000.25))
+                    .unwrap()
+                    .starts_with("2027-01-03T18:13:20.")
+            );
+            assert_eq!(
+                at(serde_json::json!(1_799_000_000i64)).as_deref(),
+                Some(&*whole)
+            );
+            // The browser SDK writes a string.
+            assert_eq!(
+                at(serde_json::json!("2027-01-03T18:13:20Z")).as_deref(),
+                Some(&*whole)
+            );
+            assert_eq!(at(serde_json::json!("not a time")), None);
+            assert_eq!(crumb_time(&serde_json::json!({})), None);
         }
 
         #[test]
