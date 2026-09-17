@@ -1,6 +1,7 @@
 pub mod command_palette;
 pub mod copy_dsn;
 pub mod dashboard_shell;
+pub mod faq;
 pub mod footer;
 pub mod level_icon;
 pub mod logo;

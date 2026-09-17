@@ -5,6 +5,7 @@ use dioxus::prelude::*;
 use dioxus_free_icons::{Icon, icons::ld_icons::*};
 
 use crate::UserAuthState;
+use crate::components::level_icon::LevelIcon;
 use crate::components::toast::{ToastLevel, show_toast};
 use crate::errors_data::{event_detail, issue_detail, issue_events, post_note, set_issue_status};
 use crate::models::errors::{
@@ -134,8 +135,14 @@ pub fn IssueDetail(id: i64) -> Element {
                         div { class: "flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mt-3",
                             div { class: "min-w-0",
                                 div { class: "flex items-center gap-2 flex-wrap",
-                                    span { class: "badge {badge} gap-1.5",
-                                        span { class: "w-1.5 h-1.5 rounded-full bg-current" }
+                                    // The level names itself here — one issue, room for the
+                                    // word — but with the list's icon rather than the dot that
+                                    // used to sit inside it, which was a live-status idiom on
+                                    // something that is not a status. Outlined, because as the
+                                    // one solid fill among three badges it shouted, in the
+                                    // error fill, two pixels from the Resolve button.
+                                    span { class: "badge {badge} badge-outline gap-1.5",
+                                        LevelIcon { level: detail.level.clone(), size: 13 }
                                         "{detail.level}"
                                     }
                                     span { class: "badge badge-ghost", "{detail.status}" }

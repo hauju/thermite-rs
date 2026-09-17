@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
 use dioxus_free_icons::{Icon, icons::ld_icons::*};
 
+use crate::components::faq::FaqCard;
 use crate::components::meta::{JsonLd, PageMeta, offer, software_application};
 use crate::routes::Route;
 use crate::waitlist::{WaitlistForm, waitlist_open};
@@ -376,18 +377,6 @@ fn SelfHostedCard() -> Element {
                     Icon { icon: LdBookOpen, width: 16, height: 16 }
                     "Read the docs"
                 }
-            }
-        }
-    }
-}
-
-#[component]
-fn FaqCard(question: &'static str, answer: &'static str) -> Element {
-    rsx! {
-        div { class: "card card-elevated bg-base-200 h-full",
-            div { class: "card-body gap-2",
-                h3 { class: "card-title text-base", "{question}" }
-                p { class: "text-base-content/60 text-sm leading-relaxed", "{answer}" }
             }
         }
     }

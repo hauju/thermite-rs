@@ -1000,7 +1000,7 @@ fn IssueCard(
                             }
                         }
                     }
-                    div { class: "font-medium line-clamp-2 sm:truncate mt-1", "{row.title}" }
+                    div { class: "font-medium break-words sm:truncate mt-1", "{row.title}" }
                     if let Some(culprit) = &row.culprit {
                         div { class: "text-xs text-base-content/50 truncate font-mono", "{culprit}" }
                     }

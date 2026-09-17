@@ -77,11 +77,11 @@ pub fn Footer() -> Element {
                             Icon { icon: LdTwitter, width: 20, height: 20 }
                         }
                         a {
-                            href: "https://github.com/hauju",
+                            href: "https://github.com/hauju/thermite-rs",
                             target: "_blank",
                             rel: "noopener noreferrer",
                             class: "text-base-content/40 transition-colors hover:text-base-content",
-                            "aria-label": "hauju on GitHub",
+                            "aria-label": "Thermite on GitHub",
                             Icon { icon: LdGithub, width: 20, height: 20 }
                         }
                         a {

@@ -106,6 +106,28 @@ pub fn software_application(
     })
 }
 
+/// The questions on a page as schema.org describes an FAQ, so a search result can carry the
+/// answers rather than only the link. It takes the same array the cards are rendered from: two
+/// copies of the wording would drift, and structured data that disagrees with the page is worse
+/// than none.
+pub fn faq_page(entries: &[(&str, &str)]) -> serde_json::Value {
+    let questions: Vec<_> = entries
+        .iter()
+        .map(|(question, answer)| {
+            serde_json::json!({
+                "@type": "Question",
+                "name": question,
+                "acceptedAnswer": { "@type": "Answer", "text": answer },
+            })
+        })
+        .collect();
+    serde_json::json!({
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": questions,
+    })
+}
+
 /// The founder as schema.org describes a person, for the about page. The `sameAs` links are
 /// the ones `software_application` names as author, so the two resolve to one person.
 pub fn person(path: &str) -> serde_json::Value {

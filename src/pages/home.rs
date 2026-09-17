@@ -1,8 +1,11 @@
 use dioxus::prelude::*;
 use dioxus_free_icons::{Icon, icons::ld_icons::*};
 
+use crate::components::faq::FaqCard;
 use crate::components::logo::ThermiteMark;
-use crate::components::meta::{JsonLd, PageMeta, SITE_DESCRIPTION, offer, software_application};
+use crate::components::meta::{
+    JsonLd, PageMeta, SITE_DESCRIPTION, faq_page, offer, software_application,
+};
 use crate::errors_data::demo_link;
 use crate::routes::Route;
 use crate::waitlist::{WaitlistForm, waitlist_open};
@@ -21,6 +24,67 @@ const HERO_EMBERS_ON_MOUNT: &str = concat!(
     include_str!("../../assets/hero-embers.js"),
     "}"
 );
+
+/// How Thermite compares with the two things a reader is already choosing between: label, then
+/// Thermite, Sentry's hosted service and Sentry's self-hosted stack. Facts only — the stack and
+/// the licence are what Sentry itself publishes.
+const COMPARISON: [(&str, &str, &str, &str); 5] = [
+    (
+        "Ingest",
+        "Any Sentry SDK",
+        "Any Sentry SDK",
+        "Any Sentry SDK",
+    ),
+    (
+        "Runs on",
+        "One binary + Postgres",
+        "Their cloud",
+        "Kafka, ClickHouse, Redis, Snuba, Relay and more",
+    ),
+    (
+        "Priced by",
+        "Errors sent",
+        "Errors sent plus seats",
+        "Your ops time",
+    ),
+    (
+        "Agent triage over MCP",
+        "Built in",
+        "Not offered",
+        "Not offered",
+    ),
+    ("License", "AGPL-3.0", "Proprietary", "FSL"),
+];
+
+/// The questions that decide whether someone switches, and their answers. One array, read by
+/// both the cards and the `FAQPage` structured data, so the answer a search result shows is the
+/// answer on the page.
+const FAQ: [(&str, &str); 6] = [
+    (
+        "Do I have to change code?",
+        "No. Point the DSN in your existing SDK config at Thermite. Same envelope and store endpoints, so the SDK cannot tell the difference.",
+    ),
+    (
+        "Which SDKs work?",
+        "Any Sentry SDK, unmodified: sentry-python, @sentry/browser, sentry-rust, and the rest. Services already on OpenTelemetry can send OTLP logs instead — ERROR and above become events.",
+    ),
+    (
+        "Which agents can triage?",
+        "Anything that speaks MCP: Claude Code, Cursor, Codex, or a script of your own. Claude Code connects with an API key; claude.ai connects over OAuth.",
+    ),
+    (
+        "Does Thermite send my errors to a model?",
+        "Never. It calls no model at all. It queues each new issue, and your own agent — running on your machine under your key — claims it over MCP and writes the diagnosis back.",
+    ),
+    (
+        "What if I don't use agents yet?",
+        "It is a complete error tracker on its own: grouping, alerts by email and webhook, cron monitoring, release health. The triage queue just waits.",
+    ),
+    (
+        "What do I need to self-host?",
+        "One binary and a Postgres. No Kafka, no ClickHouse, no dozen containers. AGPL-3.0, free for any use including inside your company.",
+    ),
+];
 
 /// Landing page.
 #[component]
@@ -42,6 +106,7 @@ pub fn Home() -> Element {
             path: "/",
         }
         JsonLd { data: software_application("/", SITE_DESCRIPTION, offer("Free", "0", "1,000 errors / month")) }
+        JsonLd { data: faq_page(&FAQ) }
         section { class: "relative overflow-hidden",
             // Ambient hero backdrop: soft azure glow + masked guideline grid.
             div { class: "landing-hero-glow" }
@@ -115,6 +180,15 @@ pub fn Home() -> Element {
                             "Read the docs"
                         }
                     }
+
+                    // The whole migration, shown rather than claimed: a reader can hold this
+                    // against their own config without opening the docs.
+                    pre { class: "landing-hero-rise hero-delay-4 mt-10 w-full max-w-xl overflow-x-auto rounded-xl border border-base-300 bg-base-200 px-5 py-4 text-left font-mono text-sm",
+                        code {
+                            span { class: "text-base-content/40", "# the only change" }
+                            "\nSENTRY_DSN=https://<key>@thermite.example.com/1"
+                        }
+                    }
                 }
 
                 // What the copy above is describing, before any of the explaining starts: the
@@ -169,7 +243,7 @@ pub fn Home() -> Element {
                         StepCard {
                             number: "2",
                             title: "Your agent claims it",
-                            description: "Over MCP it gets the exception chain, every stack frame, breadcrumbs — and the release that crashed, so it diagnoses against the revision that actually broke.",
+                            description: "Over MCP it gets the exception chain, every stack frame, breadcrumbs — and the release that crashed, so it diagnoses against the revision that actually broke. Claude Code, Cursor, Codex, or anything that speaks MCP.",
                         }
                         StepCard {
                             number: "3",
@@ -223,6 +297,90 @@ pub fn Home() -> Element {
                         description: "Crash-free rate per release, counted from SDK sessions, so a busy release does not read as a broken one.",
                     }
                 }
+                }
+
+                // The reader is already on Sentry, so the honest framing is what changes rather
+                // than what is wrong with it: the wire protocol is the same on all three columns.
+                div { class: "w-full mt-20",
+                    div { class: "text-center mb-8",
+                        h2 { class: "text-2xl sm:text-3xl font-bold tracking-tight",
+                            "Sentry, without the parts you were paying for"
+                        }
+                        p { class: "text-base-content/60 mt-2 max-w-xl mx-auto",
+                            "Your SDKs stay exactly where they are. What changes is what it takes to run and what it is priced on."
+                        }
+                    }
+                    // Scrolls sideways rather than wrapping: four columns of prose do not fold
+                    // into a phone, and a broken table is harder to read than a scrolled one.
+                    div { class: "overflow-x-auto rounded-xl border border-base-300 bg-base-200",
+                        table { class: "table",
+                            thead {
+                                tr {
+                                    th { }
+                                    th { "Thermite" }
+                                    th { "Sentry SaaS" }
+                                    th { "Sentry self-hosted" }
+                                }
+                            }
+                            tbody {
+                                for (label , thermite , saas , self_hosted) in COMPARISON {
+                                    tr { key: "{label}",
+                                        th { class: "font-medium whitespace-nowrap", "{label}" }
+                                        td { "{thermite}" }
+                                        td { class: "text-base-content/60", "{saas}" }
+                                        td { class: "text-base-content/60", "{self_hosted}" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // The questions that come up before a switch, answered on the page rather than
+                // in a support thread.
+                div { class: "w-full mt-20",
+                    h2 { class: "text-2xl sm:text-3xl font-bold tracking-tight text-center mb-8",
+                        "Questions before you switch"
+                    }
+                    div { class: "grid grid-cols-1 md:grid-cols-2 gap-4",
+                        for (question , answer) in FAQ {
+                            FaqCard { key: "{question}", question, answer }
+                        }
+                    }
+                }
+
+                // The same two actions as the hero, for the reader who got this far: by here
+                // they have the answer they came for and should not have to scroll back up.
+                div { class: "w-full mt-20 rounded-2xl border border-base-300 bg-base-200/60 p-8 text-center",
+                    h2 { class: "text-2xl sm:text-3xl font-bold tracking-tight mb-2",
+                        "Point a DSN at it."
+                    }
+                    p { class: "text-base-content/60 mb-6",
+                        "Free for 1,000 errors a month, self-hosted for nothing."
+                    }
+                    if waitlist {
+                        div { class: "flex justify-center mb-4",
+                            WaitlistForm {}
+                        }
+                    }
+                    div { class: "flex flex-col sm:flex-row items-center justify-center gap-3",
+                        if !waitlist {
+                            Link {
+                                to: Route::LoginPage { redirect_url: "/dashboard".to_string() },
+                                class: "btn btn-primary btn-lg btn-strong rounded-xl gap-2",
+                                "Get Started"
+                                Icon { icon: LdArrowRight, width: 18, height: 18 }
+                            }
+                        }
+                        if let Some(Some(url)) = demo() {
+                            a {
+                                href: "{url}",
+                                class: "btn btn-outline btn-lg rounded-xl gap-2",
+                                Icon { icon: LdEye, width: 18, height: 18 }
+                                "See the live demo"
+                            }
+                        }
+                    }
                 }
             }
         }
