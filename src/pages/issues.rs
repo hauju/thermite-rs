@@ -578,11 +578,15 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                     },
                     Some(Ok(rows)) => rsx! {
                         if !selected.read().is_empty() {
-                            div { class: "flex items-center gap-2 flex-wrap rounded-xl border border-primary/40 bg-primary/5 px-4 py-2 mb-2 text-sm",
+                            // Ticking rows happens down the list, so on a phone an action bar
+                            // above the list is off-screen by the time there is a selection to
+                            // act on. It rides the bottom of the viewport there, and only sits
+                            // above the list where the whole list is not taller than the screen.
+                            div { class: "fixed inset-x-0 bottom-0 z-30 flex items-center gap-2 flex-wrap border-t border-primary/40 bg-base-200 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg text-sm sm:static sm:mb-2 sm:rounded-xl sm:border sm:px-4 sm:py-2 sm:pb-2 sm:bg-primary/5 sm:shadow-none",
                                 span { class: "font-medium",
                                     "{selected.read().len()} selected"
                                 }
-                                span { class: "ml-auto flex gap-2",
+                                span { class: "ml-auto flex flex-wrap gap-2",
                                     button { class: "btn btn-sm btn-primary", onclick: bulk("resolved", false), "Resolve" }
                                     // The release-aware form: stays resolved while the broken
                                     // deploy is still out, reopens only on a newer release.
@@ -602,7 +606,9 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                                 }
                             }
                         }
-                        div { class: "flex flex-col gap-2",
+                        // Room under the last row for the fixed bar, which would otherwise
+                        // cover it.
+                        div { class: if selected.read().is_empty() { "flex flex-col gap-2" } else { "flex flex-col gap-2 pb-28 sm:pb-0" },
                             // A refresh of the first page can pull a row up out of the pages
                             // loaded after it; show it once.
                             for (i , row) in rows.iter().chain(more_rows.read().iter().filter(|r| rows.iter().all(|f| f.id != r.id))).cloned().enumerate() {
