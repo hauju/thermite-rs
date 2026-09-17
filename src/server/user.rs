@@ -101,6 +101,22 @@ pub async fn find_by_email(db: &Database, email: &str) -> Result<Option<UserEnti
     Ok(row.map(Into::into))
 }
 
+/// Change a user's display name.
+///
+/// `name` is what both sign-in modes read back out of the row as the session's username, so this
+/// is the whole of an editable profile: `email` and `sub` are the identity keys the login matches
+/// on, and rewriting either here would lock the account out of its own sign-in.
+pub async fn set_name(db: &Database, id: Uuid, name: &str) -> Result<(), AppError> {
+    sqlx::query!(
+        "UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2",
+        name,
+        id
+    )
+    .execute(&db.pool)
+    .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -132,6 +148,21 @@ mod tests {
                 .id,
             id
         );
+    }
+
+    #[sqlx::test]
+    async fn a_display_name_is_written_and_read_back(pool: PgPool) {
+        let db = Database::from_pool(pool);
+        let id = seed_user(&db, "rename").await;
+        assert!(find_by_id(&db, id).await.unwrap().unwrap().name.is_none());
+
+        set_name(&db, id, "Hauke").await.unwrap();
+
+        let user = find_by_id(&db, id).await.unwrap().unwrap();
+        assert_eq!(user.name.as_deref(), Some("Hauke"));
+        // The identity keys are untouched — the sign-in still matches on them.
+        assert_eq!(user.email, "rename@example.test");
+        assert_eq!(user.sub, "sub-rename");
     }
 
     #[sqlx::test]

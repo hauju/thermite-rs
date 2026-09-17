@@ -652,6 +652,41 @@ pub async fn raise_demo_error(
     Ok(sent)
 }
 
+/// Rename yourself.
+///
+/// The display name is the whole of an editable profile. The email is the identity key both
+/// sign-in modes match on — the admin credential answers for one address, FerrisKey's subject is
+/// bound to another — so offering it here would be offering to lock the account out of its own
+/// login.
+///
+/// The session carries the name that the *sign-in* read out of the row, so the row is not enough:
+/// without writing the session back, the shell and every analysis this user posts would keep the
+/// old name until the next sign-in, which reads as a save that did not take.
+#[post("/api/errors/profile/name", session: auth::UserSession, store: tower_sessions::Session)]
+pub async fn set_display_name(name: String) -> Result<String, ServerFnError> {
+    let mut data = session
+        .data()
+        .map_err(|_| ServerFnError::from(AppError::Unauthorized))?;
+    let name = name.trim().to_string();
+    if name.is_empty() || name.chars().count() > 64 {
+        return Err(ServerFnError::from(AppError::Validation(
+            "Name must be 1–64 characters".to_string(),
+        )));
+    }
+
+    let state = crate::server::state::AppState::global();
+    let user_id = uuid::Uuid::parse_str(&data.id)
+        .map_err(|e| ServerFnError::from(AppError::Validation(format!("invalid user id: {e}"))))?;
+    crate::server::user::set_name(&state.db, user_id, &name).await?;
+
+    data.username = name.clone();
+    auth::login(&store, &data)
+        .await
+        .map_err(|e| ServerFnError::from(AppError::Internal(e.to_string())))?;
+
+    Ok(name)
+}
+
 #[cfg(feature = "server")]
 fn non_empty(value: &str, fallback: &str) -> String {
     let trimmed = value.trim();
