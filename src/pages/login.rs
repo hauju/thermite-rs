@@ -116,8 +116,6 @@ pub fn LoginPage(redirect_url: String) -> Element {
                                 },
                                 embed: true,
                             }
-
-                            DevLoginButton {}
                         } else {
                             // Still asking which flow to render — the card keeps its shape so the
                             // page does not jump once the answer lands.
@@ -137,33 +135,6 @@ pub fn LoginPage(redirect_url: String) -> Element {
                     }
                 }
                 }
-            }
-        }
-    }
-}
-
-/// Development-only shortcut that signs in as the local dev user, bypassing
-/// FerrisKey. Rendered only in debug builds (compiled out of `--release`); the
-/// server also requires `DEV_LOGIN=true` for the underlying endpoint to work.
-#[component]
-fn DevLoginButton() -> Element {
-    #[cfg(not(debug_assertions))]
-    return rsx! {};
-
-    #[cfg(debug_assertions)]
-    rsx! {
-        div { class: "mt-4 pt-4 border-t border-base-300/50",
-            button {
-                r#type: "button",
-                class: "btn btn-outline btn-sm btn-block gap-2",
-                onclick: move |_| {
-                    // Full-page POST + reload so the new session cookie is applied.
-                    let _ = document::eval(
-                        "fetch('/auth/dev-login', { method: 'POST' })\
-                         .finally(function () { window.location.href = '/dashboard'; });",
-                    );
-                },
-                "Dev login (local only)"
             }
         }
     }
