@@ -6,6 +6,7 @@ use crate::components::footer::Footer;
 use crate::components::logo::ThermiteMark;
 use crate::errors_data::demo_link;
 use crate::routes::Route;
+use crate::waitlist::waitlist_open;
 
 /// Public navbar, adapted from mcpi-site: a floating pill detached from the
 /// edges — logo left, quiet text links centered, one loud CTA right. The logo
@@ -23,6 +24,9 @@ use crate::routes::Route;
 pub fn Navbar() -> Element {
     let user_auth = use_context::<Signal<UserAuthState>>();
     let demo = use_server_future(|| async { demo_link().await.ok().flatten() })?;
+    // Server-rendered for the same reason the demo link is: the loud CTA must not change what
+    // it says after hydration.
+    let waitlist = use_server_future(|| async { waitlist_open().await.unwrap_or(false) })?;
 
     rsx! {
         div { class: "sticky top-0 z-30 px-4 pt-3",
@@ -74,16 +78,29 @@ pub fn Navbar() -> Element {
                     },
                     // Two doors for a visitor with no session: the loud one is for the reader who
                     // has never been here, the quiet one for the one who already has an account.
+                    //
+                    // While signup is closed the loud one cannot be the login: it led to a page
+                    // that offers to create an account and then refuses the address. The landing
+                    // hero already swaps its own button for the waitlist form; this is the same
+                    // swap for the CTA that rides every marketing page.
                     _ => rsx! {
                         Link {
                             to: Route::LoginPage { redirect_url: "/dashboard".to_string() },
                             class: "hidden shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-base-content/60 transition-colors hover:text-base-content sm:inline-flex",
                             "Sign in"
                         }
-                        Link {
-                            to: Route::LoginPage { redirect_url: "/dashboard".to_string() },
-                            class: "btn btn-primary btn-sm btn-strong shrink-0 rounded-full px-4",
-                            "Get Started"
+                        if waitlist() == Some(true) {
+                            Link {
+                                to: Route::Pricing {},
+                                class: "btn btn-primary btn-sm btn-strong shrink-0 rounded-full px-4",
+                                "Join the waitlist"
+                            }
+                        } else {
+                            Link {
+                                to: Route::LoginPage { redirect_url: "/dashboard".to_string() },
+                                class: "btn btn-primary btn-sm btn-strong shrink-0 rounded-full px-4",
+                                "Get Started"
+                            }
                         }
                     },
                 }

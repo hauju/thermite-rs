@@ -124,11 +124,14 @@ pub fn LoginPage(redirect_url: String) -> Element {
                             }
                         }
 
-                        // Reassurance for new signups
-                        p { class: "mt-6 text-center text-xs text-base-content/50",
-                            if waitlist() == Some(true) {
-                                "Hosted signup is invitation-only for now — the waitlist on the pricing page is the way in."
-                            } else {
+                        // Reassurance for new signups — and only for them. While signup is
+                        // closed this said the opposite of the crate's own line two rows above
+                        // it ("No account yet? We'll create one for you."), so the page made a
+                        // promise and withdrew it in the same breath. With the marketing CTA
+                        // now pointing at the waitlist instead of here, whoever reaches this
+                        // page came to sign in, and the page says one thing.
+                        if waitlist() == Some(false) {
+                            p { class: "mt-6 text-center text-xs text-base-content/50",
                                 "New here? Free to start \u{00b7} no credit card required."
                             }
                         }
