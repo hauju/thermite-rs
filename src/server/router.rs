@@ -162,7 +162,10 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
     // HSTS is only safe over HTTPS, so gate it on the same flag as secure cookies.
     let hsts = app_state.config.secure_cookies;
     let demo = app_state.config.demo_autologin;
-    let site = app_state.config.site;
+    let site = SiteMode {
+        enabled: app_state.config.site,
+        upstream: app_state.config.site_url.clone(),
+    };
     let trust_proxy = app_state.config.trust_proxy_headers;
     // Unset: no tracker tag is written into any page, whatever UMAMI_HOST says.
     let umami_website_id = app_state.config.umami_website_id.clone();
@@ -203,7 +206,7 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
         .merge(server::seo::seo_router(
             &app_state.config.base_url,
             demo,
-            site,
+            site.enabled,
         ))
         // GET /health (liveness, used by the Docker HEALTHCHECK) and /ready (readiness).
         .merge(server::health::health_router())
@@ -219,7 +222,10 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
             server::seo::patch_shell,
         ))
         // The marketing pages, when this instance is not the marketing site (see `site_route`).
-        .layer(axum::middleware::from_fn_with_state(site, marketing_site))
+        .layer(axum::middleware::from_fn_with_state(
+            site.clone(),
+            marketing_site,
+        ))
         .layer(session_layer)
         // Brotli 6: 10-20% smaller than gzip at ~4 ms per page. The library default
         // (brotli 11) costs ~150 ms of CPU per 250 KiB response.
@@ -243,6 +249,15 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
         ))
         // Outermost: a request span that records the path only (never the query).
         .layer(TraceLayer::new_for_http().make_span_with(server::security::redacted_request_span))
+}
+
+/// Whether this instance serves the marketing pages, and which instance does when it does not.
+#[derive(Debug, Clone)]
+struct SiteMode {
+    /// `THERMITE_SITE`.
+    enabled: bool,
+    /// `THERMITE_SITE_URL`, with no trailing slash.
+    upstream: Option<String>,
 }
 
 /// What a marketing page answers on an instance that is not the marketing site.
@@ -270,21 +285,36 @@ fn site_route(path: &str) -> Option<Blocked> {
 /// rather than in the Dioxus tree means the landing page is never rendered and never flashes,
 /// and the client bundle — built long before an operator sets the variable — needs no say in it.
 async fn marketing_site(
-    axum::extract::State(site): axum::extract::State<bool>,
+    axum::extract::State(site): axum::extract::State<SiteMode>,
     request: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
-    use axum::http::{Method, StatusCode, header};
+    use axum::http::{HeaderValue, Method, StatusCode, header};
     use axum::response::IntoResponse;
 
-    if site || !matches!(*request.method(), Method::GET | Method::HEAD) {
+    if site.enabled || !matches!(*request.method(), Method::GET | Method::HEAD) {
         return next.run(request).await;
     }
     match site_route(request.uri().path()) {
         Some(Blocked::Redirect) => {
             (StatusCode::FOUND, [(header::LOCATION, "/dashboard")]).into_response()
         }
-        Some(Blocked::NotFound) => StatusCode::NOT_FOUND.into_response(),
+        // The demo instance is not the marketing site but knows the one that is, so a visitor
+        // who reached /pricing gets the page rather than a dead end. The host is fixed by
+        // configuration and only the paths `site_route` already matched are appended, so this
+        // can never redirect anywhere the operator did not name.
+        Some(Blocked::NotFound) => match &site.upstream {
+            Some(base) => {
+                let target = format!("{base}{}", request.uri().path());
+                match HeaderValue::try_from(target) {
+                    Ok(location) => {
+                        (StatusCode::FOUND, [(header::LOCATION, location)]).into_response()
+                    }
+                    Err(_) => StatusCode::NOT_FOUND.into_response(),
+                }
+            }
+            None => StatusCode::NOT_FOUND.into_response(),
+        },
         None => next.run(request).await,
     }
 }

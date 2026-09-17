@@ -245,6 +245,41 @@ async fn without_the_site_flag_the_instance_is_only_the_application(pool: PgPool
     );
 }
 
+/// The demo instance is the application with a marketing site elsewhere: `/` is the dashboard's
+/// front door as on any self-hosted instance, but the pages this one does not serve point at the
+/// instance that does, rather than dead-ending a visitor who typed /pricing.
+#[sqlx::test]
+async fn the_site_url_sends_the_marketing_paths_to_the_instance_that_serves_them(pool: PgPool) {
+    let base = serve_with_state(pool, shell_routes(), |state| {
+        state.config.site_url = Some("https://thermite.rs".to_string());
+    })
+    .await;
+
+    let root = client().get(format!("{base}/")).send().await.unwrap();
+    assert_eq!(root.status(), 302);
+    assert_eq!(
+        root.headers()["location"],
+        "/dashboard",
+        "the front door stays this instance's own"
+    );
+
+    for path in ["/about", "/pricing", "/legal/privacy"] {
+        let res = client().get(format!("{base}{path}")).send().await.unwrap();
+        assert_eq!(res.status(), 302, "{path}");
+        assert_eq!(
+            res.headers()["location"],
+            format!("https://thermite.rs{path}")
+        );
+    }
+
+    let docs = client()
+        .get(format!("{base}/docs/getting-started/introduction"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(docs.status(), 200, "the docs stay on every instance");
+}
+
 /// With the flag set — thermite.rs and demo.thermite.rs — the whole site is there.
 #[sqlx::test]
 async fn the_site_flag_serves_the_marketing_pages(pool: PgPool) {

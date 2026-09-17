@@ -70,6 +70,11 @@ pub struct Config {
     /// pages. Off by default, so the published image is just the application — those pages are
     /// thermite.rs's, not a self-hoster's.
     pub site: bool,
+    /// The instance that *is* the marketing site, for one that is not: its about, pricing and
+    /// legal paths redirect there instead of answering `404`. Unset — every self-hosted
+    /// instance — they stay a `404`, because sending a self-hoster's visitors to thermite.rs is
+    /// not a default anyone opts into. Trailing slash trimmed so the path can be appended.
+    pub site_url: Option<String>,
     /// Hosted signup is behind a waitlist: the landing and pricing pages collect addresses instead
     /// of sending people to a registration that would refuse them.
     pub waitlist: bool,
@@ -166,6 +171,8 @@ impl Config {
             site: get_env_optional("THERMITE_SITE")
                 .map(|v| v == "true")
                 .unwrap_or(false),
+            site_url: get_env_optional("THERMITE_SITE_URL")
+                .map(|v| v.trim_end_matches('/').to_string()),
             waitlist: get_env_optional("THERMITE_WAITLIST")
                 .map(|v| v == "true")
                 .unwrap_or(false),

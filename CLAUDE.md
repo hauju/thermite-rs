@@ -473,8 +473,16 @@ before an operator sets the variable — needs no say in it. The links that led 
 with them: the login page's "Back" and the docs header's "Home" render only while the flag is on
 (`errors_data::site_enabled`, the `demo_autologin()` pattern), and the dashboard shell's mark
 points at `/dashboard` in both modes. The waitlist form and `THERMITE_DEMO_URL` live on the
-landing page, so they need no gate of their own. thermite.rs and demo.thermite.rs set it; nothing
-else should.
+landing page, so they need no gate of their own. thermite.rs sets it; nothing else should.
+
+**The demo instance is not the marketing site.** `THERMITE_SITE_URL` names the instance that is,
+and the pages this one does not serve `302` there instead of answering `404` — a visitor who
+reached demo.thermite.rs/pricing gets the page. `/` still goes to `/dashboard`: the front door of
+an instance whose whole point is the dashboard stays its own, and the autologin hop signs the
+visitor in from there. The host comes from configuration and only the paths `site_route` already
+matched are appended, so it can never redirect anywhere the operator did not name. Unset is the
+default and what every self-hosted instance wants: sending a self-hoster's visitors to thermite.rs
+is not a behaviour anyone opts into by accident.
 
 Pages use `use_resource` rather than `use_server_future`, deliberately: these are authenticated views
 behind skeletons, and blocking SSR on database queries buys nothing. There is no hydration mismatch
@@ -665,8 +673,8 @@ emailed codes. SMTP (`SMTP_HOST` + `SMTP_PORT` + `SMTP_FROM`, optional `SMTP_USE
 `SMTP_PASSWORD` / `SMTP_SECURITY`) is otherwise optional. Then optional
 `THERMITE_MAX_ENVELOPE_BYTES` / `THERMITE_RATE_LIMIT_PER_MINUTE`, optional `THERMITE_DSN` +
 `THERMITE_RELEASE` + `ENVIRONMENT` for self-reporting (see "Self-reporting" below), optional
-`UMAMI_HOST` + `UMAMI_WEBSITE_ID` for web analytics and optional `THERMITE_SITE` for the
-marketing pages (both "Dashboard").
+`UMAMI_HOST` + `UMAMI_WEBSITE_ID` for web analytics and optional `THERMITE_SITE` /
+`THERMITE_SITE_URL` for the marketing pages (both "Dashboard").
 
 ### Styling
 

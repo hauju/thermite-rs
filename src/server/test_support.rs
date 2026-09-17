@@ -65,6 +65,7 @@ pub fn test_state(db: Database) -> AppState {
         demo_url: None,
         // The shipped default: the marketing pages are off, so a test that wants one says so.
         site: false,
+        site_url: None,
         waitlist: false,
         umami_website_id: None,
         db_max_connections: 10,
