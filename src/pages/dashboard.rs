@@ -84,7 +84,7 @@ pub fn Dashboard() -> Element {
                     // What happened, before what exists: the feed is the reason to open this
                     // page; the per-project cards below are the map.
                     section { class: "mb-6",
-                        h2 { class: "text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-2",
+                        h2 { class: "text-sm font-semibold uppercase tracking-wide text-muted mb-2",
                             "Needs a look"
                         }
                         match &*feed.read_unchecked() {
@@ -116,7 +116,7 @@ pub fn Dashboard() -> Element {
                             },
                         }
                     }
-                    h2 { class: "text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-2",
+                    h2 { class: "text-sm font-semibold uppercase tracking-wide text-muted mb-2",
                         "Projects"
                     }
                     ProjectList { rows: rows.clone() }
@@ -185,7 +185,7 @@ fn DeadLetterCard(row: DeadLetterRow, on_retried: EventHandler<()>) -> Element {
                         class: "font-medium truncate mt-1 block hover:text-primary",
                         "{row.title}"
                     }
-                    div { class: "text-xs text-base-content/50",
+                    div { class: "text-xs text-muted",
                         "gave up after {row.attempts} attempts, {row.failed_ago}"
                     }
                 }
@@ -232,21 +232,21 @@ fn FeedCard(item: FeedRow) -> Element {
                     }
                     div { class: "font-medium truncate mt-1", "{item.title}" }
                     if let Some(culprit) = &item.culprit {
-                        div { class: "text-xs text-base-content/50 truncate font-mono", "{culprit}" }
+                        div { class: "text-xs text-muted truncate font-mono", "{culprit}" }
                     }
                 }
                 div { class: "text-right w-20 hidden lg:block",
                     div { class: "font-semibold tabular-nums whitespace-nowrap", "{item.last_seen_ago}" }
-                    div { class: "text-xs text-base-content/50", "last seen" }
+                    div { class: "text-xs text-muted", "last seen" }
                 }
                 div { class: "text-right w-16",
                     div { class: "font-semibold tabular-nums", "{item.times_seen}" }
-                    div { class: "text-xs text-base-content/50", "events" }
+                    div { class: "text-xs text-muted", "events" }
                 }
                 if item.users_affected > 0 {
                     div { class: "text-right w-14 hidden md:block",
                         div { class: "font-semibold tabular-nums", "{item.users_affected}" }
-                        div { class: "text-xs text-base-content/50", "users" }
+                        div { class: "text-xs text-muted", "users" }
                     }
                 }
             }
@@ -296,7 +296,7 @@ fn OverviewCard(row: ProjectOverviewRow) -> Element {
                             class: "font-semibold hover:text-primary truncate block",
                             "{row.name}"
                         }
-                        div { class: "text-xs text-base-content/50 font-mono truncate", "{row.slug}" }
+                        div { class: "text-xs text-muted font-mono truncate", "{row.slug}" }
                     }
                     // The right block is ~264px that cannot shrink, so on a phone it ate the
                     // name column until the slug truncated to five characters. The sparkline
@@ -310,13 +310,13 @@ fn OverviewCard(row: ProjectOverviewRow) -> Element {
                             div { class: "text-lg font-semibold tabular-nums",
                                 "{thousands(row.events_last_24h)}"
                             }
-                            div { class: "text-xs text-base-content/50", "events 24h" }
+                            div { class: "text-xs text-muted", "events 24h" }
                         }
                         div { class: "text-right w-16",
                             div { class: "text-lg font-semibold tabular-nums",
                                 "{thousands(row.unresolved_issues)}"
                             }
-                            div { class: "text-xs text-base-content/50", "unresolved" }
+                            div { class: "text-xs text-muted", "unresolved" }
                         }
                     }
                 }

@@ -87,7 +87,7 @@ fn NameStory() -> Element {
         section { class: "container mx-auto px-4 pb-16 max-w-6xl",
             div { class: "grid lg:grid-cols-2 gap-12 items-center",
                 div { class: "space-y-6 lg:order-2",
-                    span { class: "block text-xs font-mono uppercase tracking-[0.2em] text-base-content/50",
+                    span { class: "block text-xs font-mono uppercase tracking-[0.2em] text-muted",
                         "The name & the mark"
                     }
                     h2 { class: "text-4xl md:text-5xl font-black tracking-tight",
@@ -110,7 +110,7 @@ fn NameStory() -> Element {
                                 h3 { class: "text-4xl md:text-5xl font-bold", "thermite." }
                                 p { class: "mt-3 italic text-base-content/70",
                                     "[thur-mite] "
-                                    span { class: "text-base-content/50", "(iron oxide + aluminium)" }
+                                    span { class: "text-muted", "(iron oxide + aluminium)" }
                                     span { class: "not-italic font-bold text-base-content", " noun" }
                                 }
                             }
@@ -134,7 +134,7 @@ fn WhyThermite() -> Element {
         section { class: "bg-base-200 border-y border-base-300",
             div { class: "container mx-auto px-4 py-16 lg:py-20 max-w-6xl",
                 div { class: "max-w-3xl mb-12",
-                    span { class: "block text-xs font-mono uppercase tracking-[0.2em] text-base-content/50 mb-4",
+                    span { class: "block text-xs font-mono uppercase tracking-[0.2em] text-muted mb-4",
                         "Why Thermite"
                     }
                     h2 { class: "text-4xl md:text-5xl font-black tracking-tight mb-4",
@@ -180,7 +180,7 @@ fn WhyCard(
     rsx! {
         div { class: "bg-base-100 p-7 lg:p-8",
             div { class: "flex items-baseline justify-between mb-5",
-                span { class: "font-mono text-xs uppercase tracking-[0.2em] text-base-content/50", "{persona}" }
+                span { class: "font-mono text-xs uppercase tracking-[0.2em] text-muted", "{persona}" }
                 span { class: "text-primary", {icon} }
             }
             h3 { class: "font-display text-xl font-semibold tracking-tight mb-3", "{title}" }
@@ -195,7 +195,7 @@ fn GetInTouch() -> Element {
     rsx! {
         section { class: "container mx-auto px-4 py-16 max-w-6xl",
             div { class: "rounded-2xl border border-base-300 bg-base-200/60 p-8 text-center",
-                span { class: "block text-xs font-mono uppercase tracking-[0.2em] text-base-content/50 mb-4",
+                span { class: "block text-xs font-mono uppercase tracking-[0.2em] text-muted mb-4",
                     "Get in touch"
                 }
                 h2 { class: "text-2xl sm:text-3xl font-bold tracking-tight mb-2", "Send me a message" }

@@ -91,7 +91,7 @@ pub fn Pricing() -> Element {
                         div { class: "flex flex-wrap items-start justify-between gap-x-6 gap-y-1",
                             div {
                                 p { class: "text-sm font-semibold", "Errors a month" }
-                                p { class: "text-xs text-base-content/50",
+                                p { class: "text-xs text-muted",
                                     "The same binary as self-hosted, run by us with the dashboard, MCP server and alerts attached. Set your volume."
                                 }
                             }
@@ -113,7 +113,7 @@ pub fn Pricing() -> Element {
                             "aria-valuetext": "{stop_label(selected())} errors a month",
                             oninput: move |e| selected.set(e.value().parse().unwrap_or(1)),
                         }
-                        div { class: "flex justify-between px-1 text-xs text-base-content/50",
+                        div { class: "flex justify-between px-1 text-xs text-muted",
                             for (i, stop) in STOPS.iter().enumerate() {
                                 span {
                                     key: "{stop}",
@@ -299,13 +299,13 @@ fn PlanCard(
                 }
                 div { class: "flex items-baseline gap-1",
                     span { class: "font-display text-4xl font-black tracking-tight", "{price}" }
-                    span { class: "text-base-content/50 text-sm", "{cadence}" }
+                    span { class: "text-muted text-sm", "{cadence}" }
                 }
                 // The metered dimension sits with the price, not in the checklist: it is the thing
                 // being bought, and the anchor under it is what lets a reader place themselves.
                 div { class: "border-y border-base-300 py-3",
                     p { class: "text-sm font-semibold", "{volume}" }
-                    p { class: "text-xs text-base-content/50 mt-0.5", "{volume_note}" }
+                    p { class: "text-xs text-muted mt-0.5", "{volume_note}" }
                 }
                 ul { class: "flex flex-col gap-2",
                     for feature in features {
@@ -348,11 +348,11 @@ fn SelfHostedCard() -> Element {
                 }
                 div { class: "flex items-baseline gap-1",
                     span { class: "font-display text-4xl font-black tracking-tight", "$0" }
-                    span { class: "text-base-content/50 text-sm", "forever" }
+                    span { class: "text-muted text-sm", "forever" }
                 }
                 div { class: "border-y border-base-300 py-3",
                     p { class: "text-sm font-semibold", "Unlimited errors" }
-                    p { class: "text-xs text-base-content/50 mt-0.5",
+                    p { class: "text-xs text-muted mt-0.5",
                         "Bounded by your disk, not by us."
                     }
                 }

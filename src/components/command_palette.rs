@@ -176,7 +176,7 @@ pub fn CommandPalette(open: Signal<bool>) -> Element {
                     kbd { class: "kbd kbd-xs", "esc" }
                 }
                 if found.is_empty() {
-                    div { class: "px-4 py-6 text-sm text-base-content/50 text-center",
+                    div { class: "px-4 py-6 text-sm text-muted text-center",
                         if projects.read().is_none() {
                             span { class: "loading loading-spinner loading-xs" }
                         } else {
@@ -201,7 +201,7 @@ pub fn CommandPalette(open: Signal<bool>) -> Element {
                                         },
                                         Target::Project { slug, name } => rsx! {
                                             span { "{name}" }
-                                            span { class: "font-mono text-xs text-base-content/50", "{slug}" }
+                                            span { class: "font-mono text-xs text-muted", "{slug}" }
                                         },
                                     }
                                 }
@@ -209,7 +209,7 @@ pub fn CommandPalette(open: Signal<bool>) -> Element {
                         }
                     }
                 }
-                div { class: "flex gap-3 px-4 py-2 border-t border-base-300 text-xs text-base-content/40",
+                div { class: "flex gap-3 px-4 py-2 border-t border-base-300 text-xs text-subtle",
                     span { kbd { class: "kbd kbd-xs", "↑" } " " kbd { class: "kbd kbd-xs", "↓" } " move" }
                     span { kbd { class: "kbd kbd-xs", "↵" } " open" }
                 }

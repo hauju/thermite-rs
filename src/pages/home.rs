@@ -180,7 +180,7 @@ pub fn Home() -> Element {
                     // against their own config without opening the docs.
                     pre { class: "landing-hero-rise hero-delay-4 mt-10 w-full max-w-xl overflow-x-auto rounded-xl border border-base-300 bg-base-200 px-5 py-4 text-left font-mono text-sm",
                         code {
-                            span { class: "text-base-content/40", "# the only change" }
+                            span { class: "text-subtle", "# the only change" }
                             "\nSENTRY_DSN=https://<key>@thermite.rs/1"
                         }
                     }

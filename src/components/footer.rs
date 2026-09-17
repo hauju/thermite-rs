@@ -65,14 +65,14 @@ pub fn Footer() -> Element {
             // Bottom bar
             div { class: "border-t border-base-300",
                 div { class: "mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 py-6 lg:flex-row lg:px-8",
-                    p { class: "text-sm text-base-content/40", "© 2026 Thermite. All rights reserved." }
+                    p { class: "text-sm text-subtle", "© 2026 Thermite. All rights reserved." }
 
                     div { class: "flex items-center gap-3",
                         a {
                             href: "https://x.com/haukejung",
                             target: "_blank",
                             rel: "noopener noreferrer",
-                            class: "text-base-content/40 transition-colors hover:text-base-content",
+                            class: "text-subtle transition-colors hover:text-base-content",
                             "aria-label": "Thermite on X",
                             Icon { icon: LdTwitter, width: 20, height: 20 }
                         }
@@ -80,7 +80,7 @@ pub fn Footer() -> Element {
                             href: "https://github.com/hauju/thermite-rs",
                             target: "_blank",
                             rel: "noopener noreferrer",
-                            class: "text-base-content/40 transition-colors hover:text-base-content",
+                            class: "text-subtle transition-colors hover:text-base-content",
                             "aria-label": "Thermite on GitHub",
                             Icon { icon: LdGithub, width: 20, height: 20 }
                         }
@@ -88,7 +88,7 @@ pub fn Footer() -> Element {
                             href: "https://www.linkedin.com/in/haukejung/",
                             target: "_blank",
                             rel: "noopener noreferrer",
-                            class: "text-base-content/40 transition-colors hover:text-base-content",
+                            class: "text-subtle transition-colors hover:text-base-content",
                             "aria-label": "Hauke Jung on LinkedIn",
                             Icon { icon: LdLinkedin, width: 20, height: 20 }
                         }

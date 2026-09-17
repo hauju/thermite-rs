@@ -31,7 +31,7 @@ pub fn ProjectSettings(slug: String) -> Element {
             match &*project.read_unchecked() {
                 Some(Ok(data)) => rsx! {
                     div { class: "mb-6",
-                        div { class: "text-xs text-base-content/50 mb-1",
+                        div { class: "text-xs text-muted mb-1",
                             Link {
                                 to: Route::Projects {},
                                 class: "hover:text-primary",
@@ -330,7 +330,7 @@ fn KeysCard(project: ProjectSummary) -> Element {
             div { class: "card-body gap-3",
                 h2 { class: "card-title text-base", "DSN keys" }
                 div {
-                    div { class: "text-xs uppercase tracking-wide text-base-content/50 mb-1", "Default DSN" }
+                    div { class: "text-xs uppercase tracking-wide text-muted mb-1", "Default DSN" }
                     div { class: "flex items-center gap-2",
                         code { class: "flex-1 bg-base-300 rounded px-3 py-2 text-xs break-all font-mono",
                             "{dsn}"
@@ -339,7 +339,7 @@ fn KeysCard(project: ProjectSummary) -> Element {
                     }
                 }
                 div {
-                    div { class: "text-xs uppercase tracking-wide text-base-content/50 mb-1",
+                    div { class: "text-xs uppercase tracking-wide text-muted mb-1",
                         "Component DSNs"
                     }
                     p { class: "text-xs text-base-content/60 mb-2",

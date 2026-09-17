@@ -167,7 +167,7 @@ pub fn ToastProvider() -> Element {
                         "{message}"
                     }
                     div {
-                        class: "shrink-0 rounded-md p-1 text-base-content/40 opacity-0 transition-opacity group-hover:opacity-100",
+                        class: "shrink-0 rounded-md p-1 text-subtle opacity-0 transition-opacity group-hover:opacity-100",
                         Icon { class: "size-3.5", icon: LdX }
                     }
                 }

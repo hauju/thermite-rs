@@ -98,7 +98,7 @@ pub fn RateChart(
 
     if counts.is_empty() {
         return rsx! {
-            div { class: "h-[96px] flex items-center justify-center text-base-content/40 text-sm",
+            div { class: "h-[96px] flex items-center justify-center text-subtle text-sm",
                 "No data"
             }
         };
@@ -194,7 +194,7 @@ pub fn RateChart(
                 // The scale's upper bound. The bars are drawn against `peak`, so without it a
                 // tall bar and a short one are indistinguishable between two windows.
                 if peak > 0 {
-                    span { class: "absolute top-0 right-0 rounded bg-base-100/85 px-1 text-xs text-base-content/50 tabular-nums pointer-events-none",
+                    span { class: "absolute top-0 right-0 rounded bg-base-100/85 px-1 text-xs text-muted tabular-nums pointer-events-none",
                         "peak {peak}"
                     }
                 }
@@ -202,7 +202,7 @@ pub fn RateChart(
             div { class: "relative h-4 mt-1",
                 for (index , text) in ticks {
                     span {
-                        class: "absolute -translate-x-1/2 text-xs text-base-content/40 tabular-nums whitespace-nowrap",
+                        class: "absolute -translate-x-1/2 text-xs text-subtle tabular-nums whitespace-nowrap",
                         style: "left: {(index as f64 + 0.5) * slot:.3}%",
                         "{text}"
                     }

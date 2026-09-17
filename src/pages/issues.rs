@@ -360,7 +360,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                             _ => rsx! { "{slug}" },
                         }
                     }
-                    div { class: "text-xs text-base-content/50 font-mono truncate", "{slug}" }
+                    div { class: "text-xs text-muted font-mono truncate", "{slug}" }
                 }
                 div { class: "flex items-center gap-2 shrink-0",
                     if can_write {
@@ -395,11 +395,11 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                                     // ingest day one rather than only once something goes missing.
                                     div {
                                         title: dropped_breakdown(&stats.totals.dropped_by_reason),
-                                        div { class: "text-xs uppercase tracking-wide text-base-content/50",
+                                        div { class: "text-xs uppercase tracking-wide text-muted",
                                             "Dropped"
                                         }
                                         div {
-                                            class: if stats.totals.dropped > 0 { "text-2xl font-semibold tabular-nums text-error" } else { "text-2xl font-semibold tabular-nums text-base-content/40" },
+                                            class: if stats.totals.dropped > 0 { "text-2xl font-semibold tabular-nums text-error" } else { "text-2xl font-semibold tabular-nums text-subtle" },
                                             "{stats.totals.dropped}"
                                         }
                                     }
@@ -469,7 +469,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                         }
                     }
                     div { class: "flex items-center gap-2",
-                        span { class: "text-xs uppercase tracking-wide text-base-content/40", "Sort" }
+                        span { class: "text-xs uppercase tracking-wide text-subtle", "Sort" }
                         div { class: "join",
                         for (value , label) in [("events", "most events"), ("users", "most users"), ("last_seen", "most recent")] {
                             button {
@@ -665,7 +665,7 @@ pub fn Issues(slug: String, filters: IssueFilters) -> Element {
                                 }
                             }
                         }
-                        div { class: "hidden md:flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-xs text-base-content/40",
+                        div { class: "hidden md:flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-xs text-subtle",
                             span { kbd { class: "kbd kbd-xs", "j" } " " kbd { class: "kbd kbd-xs", "k" } " move" }
                             span { kbd { class: "kbd kbd-xs", "↵" } " open" }
                             if can_write {
@@ -725,7 +725,7 @@ fn FirstEvent(project: ProjectSummary) -> Element {
                     }
                 }
                 div {
-                    div { class: "text-xs uppercase tracking-wide text-base-content/50 mb-1", "DSN" }
+                    div { class: "text-xs uppercase tracking-wide text-muted mb-1", "DSN" }
                     div { class: "flex items-center gap-2",
                         code { class: "flex-1 bg-base-300 rounded px-3 py-2 text-xs break-all font-mono",
                             "{project.dsn}"
@@ -836,7 +836,7 @@ sentry_sdk.init(
 fn Metric(label: &'static str, value: i64) -> Element {
     rsx! {
         div {
-            div { class: "text-xs uppercase tracking-wide text-base-content/50", "{label}" }
+            div { class: "text-xs uppercase tracking-wide text-muted", "{label}" }
             div { class: "text-2xl font-semibold tabular-nums", "{value}" }
         }
     }
@@ -874,7 +874,7 @@ fn ReleaseHealth(releases: Vec<ReleaseHealthRow>) -> Element {
                                 // Below the floor a rate is noise dressed as a measurement: one
                                 // crash in three sessions reads as a catastrophe and means nothing.
                                 None => rsx! {
-                                    span { class: "text-sm text-base-content/40 w-28 text-right",
+                                    span { class: "text-sm text-subtle w-28 text-right",
                                         "not enough data"
                                     }
                                 },
@@ -896,19 +896,19 @@ fn Monitors(monitors: Vec<MonitorRow>) -> Element {
     rsx! {
         div { class: "card bg-base-200 border border-base-300 mb-6",
             div { class: "card-body gap-3",
-                div { class: "text-xs uppercase tracking-wide text-base-content/50", "Cron monitors" }
+                div { class: "text-xs uppercase tracking-wide text-muted", "Cron monitors" }
                 div { class: "flex flex-col gap-2",
                     for monitor in monitors {
                         div { class: "flex items-center justify-between gap-4 text-sm",
                             div { class: "min-w-0",
                                 div { class: "font-medium truncate", "{monitor.slug}" }
-                                div { class: "text-xs text-base-content/50 font-mono",
+                                div { class: "text-xs text-muted font-mono",
                                     "{monitor.schedule} · {monitor.timezone}"
                                 }
                             }
                             div { class: "flex items-center gap-3 shrink-0",
                                 if let Some(next) = &monitor.next_due_at {
-                                    span { class: "text-xs text-base-content/50", "next {next}" }
+                                    span { class: "text-xs text-muted", "next {next}" }
                                 }
                                 span { class: "badge badge-sm {monitor_badge(monitor.status.as_deref())}",
                                     "{monitor.status.clone().unwrap_or_else(|| \"pending\".into())}"
@@ -1012,26 +1012,26 @@ fn IssueCard(
                     }
                     div { class: "font-medium break-words sm:truncate mt-1", "{row.title}" }
                     if let Some(culprit) = &row.culprit {
-                        div { class: "text-xs text-base-content/50 truncate font-mono", "{culprit}" }
+                        div { class: "text-xs text-muted truncate font-mono", "{culprit}" }
                     }
                 }
                 div { class: "hidden sm:block", Sparkline { counts: row.counts.clone() } }
                 // "Is this still happening?" — the count alone cannot answer that.
                 div { class: "text-right w-20 hidden lg:block",
                     div { class: "font-semibold tabular-nums whitespace-nowrap", "{row.last_seen_ago}" }
-                    div { class: "text-xs text-base-content/50", "last seen" }
+                    div { class: "text-xs text-muted", "last seen" }
                 }
                 div { class: "text-right w-16",
                     div { class: "font-semibold tabular-nums", "{row.times_seen}" }
                     // "total", because the stats card above counts the selected window
                     // while this is the issue's lifetime count.
-                    div { class: "text-xs text-base-content/50", "events total" }
+                    div { class: "text-xs text-muted", "events total" }
                 }
                 // 10,000 events on one user and 500 events on 400 users are different problems.
                 if row.users_affected > 0 {
                     div { class: "text-right w-14 hidden md:block",
                         div { class: "font-semibold tabular-nums", "{row.users_affected}" }
-                        div { class: "text-xs text-base-content/50", "users" }
+                        div { class: "text-xs text-muted", "users" }
                     }
                 }
                 }

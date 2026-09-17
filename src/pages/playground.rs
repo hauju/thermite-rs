@@ -131,7 +131,7 @@ pub fn Playground() -> Element {
                                     }
                                 }
                             }
-                            p { class: "text-xs text-base-content/50",
+                            p { class: "text-xs text-muted",
                                 "Environment and release become searchable tags. Resolving an issue "
                                 "\"in the next release\" is judged against the releases seen here."
                             }

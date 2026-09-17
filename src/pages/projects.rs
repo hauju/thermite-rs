@@ -152,7 +152,7 @@ fn ProjectCard(project: ProjectSummary) -> Element {
                             class: "font-semibold hover:text-primary",
                             "{project.name}"
                         }
-                        div { class: "text-xs text-base-content/50 font-mono", "{project.slug}" }
+                        div { class: "text-xs text-muted font-mono", "{project.slug}" }
                     }
                     // Same order as the dashboard card: events then unresolved. They were
                     // reversed, so the same two numbers swapped places between the two
@@ -162,13 +162,13 @@ fn ProjectCard(project: ProjectSummary) -> Element {
                             div { class: "text-lg font-semibold tabular-nums",
                                 "{thousands(project.events_last_24h)}"
                             }
-                            div { class: "text-xs text-base-content/50", "events 24h" }
+                            div { class: "text-xs text-muted", "events 24h" }
                         }
                         div { class: "w-16",
                             div { class: "text-lg font-semibold tabular-nums",
                                 "{thousands(project.unresolved_issues)}"
                             }
-                            div { class: "text-xs text-base-content/50", "unresolved" }
+                            div { class: "text-xs text-muted", "unresolved" }
                         }
                         Link {
                             to: Route::ProjectSettings { slug: project.slug.clone() },
@@ -179,7 +179,7 @@ fn ProjectCard(project: ProjectSummary) -> Element {
                     }
                 }
                 div {
-                    div { class: "text-xs uppercase tracking-wide text-base-content/50 mb-1", "DSN" }
+                    div { class: "text-xs uppercase tracking-wide text-muted mb-1", "DSN" }
                     div { class: "flex items-center gap-2",
                         code { class: "flex-1 bg-base-300 rounded px-3 py-2 text-xs break-all font-mono",
                             "{project.dsn}"
@@ -190,7 +190,7 @@ fn ProjectCard(project: ProjectSummary) -> Element {
                 // Labeled component DSNs, read-only — minting and revoking live in settings.
                 if !project.keys.is_empty() {
                     div {
-                        div { class: "text-xs uppercase tracking-wide text-base-content/50 mb-1",
+                        div { class: "text-xs uppercase tracking-wide text-muted mb-1",
                             "Component DSNs"
                         }
                         div { class: "flex flex-col gap-1.5",

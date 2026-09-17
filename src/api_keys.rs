@@ -186,7 +186,7 @@ pub fn ApiKeysCard() -> Element {
                         }
                     },
                     Some(Ok(_)) => rsx! {
-                        p { class: "text-sm text-base-content/50", "No API keys yet." }
+                        p { class: "text-sm text-muted", "No API keys yet." }
                     },
                     Some(Err(e)) => rsx! {
                         p { class: "text-sm text-error", "Failed to load keys: {e}" }
@@ -233,7 +233,7 @@ fn ApiKeyRow(
                 div { class: "text-xs text-base-content/60 font-mono", "{prefix}…" }
             }
             div { class: "flex items-center gap-3 shrink-0",
-                span { class: "text-xs text-base-content/50", "{created_at}" }
+                span { class: "text-xs text-muted", "{created_at}" }
                 button {
                     class: "btn btn-ghost btn-xs text-error",
                     disabled: revoking(),

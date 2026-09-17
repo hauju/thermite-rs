@@ -131,7 +131,7 @@ pub fn LoginPage(redirect_url: String) -> Element {
                         // now pointing at the waitlist instead of here, whoever reaches this
                         // page came to sign in, and the page says one thing.
                         if waitlist() == Some(false) {
-                            p { class: "mt-6 text-center text-xs text-base-content/50",
+                            p { class: "mt-6 text-center text-xs text-muted",
                                 "New here? Free to start \u{00b7} no credit card required."
                             }
                         }

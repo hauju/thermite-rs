@@ -25,7 +25,7 @@ pub fn LevelIcon(level: String, #[props(default = 16)] size: u32) -> Element {
         "fatal" | "error" => "text-error",
         "warning" => "text-warning",
         "info" => "text-info",
-        _ => "text-base-content/50",
+        _ => "text-muted",
     };
 
     rsx! {

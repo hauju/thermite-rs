@@ -92,7 +92,7 @@ fn ProfileCard(email: String, username: String) -> Element {
                 // Read-only values render as text: a disabled DaisyUI input loses its border
                 // and matches the card fill, so it looked like a label over an invisible box.
                 div {
-                    div { class: "text-xs uppercase tracking-wide text-base-content/50", "Email" }
+                    div { class: "text-xs uppercase tracking-wide text-muted", "Email" }
                     div { class: "font-medium mt-0.5 text-sm", "{email}" }
                     p { class: "text-xs text-base-content/60 mt-1",
                         "Fixed — it is the address your sign-in is matched against."

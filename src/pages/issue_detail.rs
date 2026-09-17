@@ -239,7 +239,7 @@ pub fn IssueDetail(id: i64) -> Element {
                             // The upper bound on where the bug was introduced.
                             if let Some(release) = &detail.first_seen_release {
                                 div {
-                                    div { class: "text-xs uppercase tracking-wide text-base-content/50",
+                                    div { class: "text-xs uppercase tracking-wide text-muted",
                                         "First seen in"
                                     }
                                     div { class: "mt-0.5",
@@ -261,7 +261,7 @@ pub fn IssueDetail(id: i64) -> Element {
                             onmounted: move |_| {
                                 let _ = document::eval("window.__thermiteSectionSpy?.();");
                             },
-                            span { class: "text-xs uppercase tracking-wide text-base-content/40 pb-2 mr-1",
+                            span { class: "text-xs uppercase tracking-wide text-subtle pb-2 mr-1",
                                 "On this page"
                             }
                             if !detail.analyses.is_empty() || can_write {
@@ -301,7 +301,7 @@ pub fn IssueDetail(id: i64) -> Element {
                     // matters most is the one correcting an agent that has not run yet.
                     if !detail.analyses.is_empty() || can_write {
                         section { id: "analysis", class: "scroll-mt-4",
-                            h2 { class: "text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-2",
+                            h2 { class: "text-sm font-semibold uppercase tracking-wide text-muted mb-2",
                                 "Analysis"
                             }
                             div { class: "flex flex-col gap-3",
@@ -364,7 +364,7 @@ pub fn IssueDetail(id: i64) -> Element {
                     // is history, not diagnosis. Opens with the first sighting, which is not
                     // stored as an activity because the issue row already carries it.
                     section { id: "activity", class: "scroll-mt-4",
-                        h2 { class: "text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-2",
+                        h2 { class: "text-sm font-semibold uppercase tracking-wide text-muted mb-2",
                             "Activity"
                         }
                         div { class: "card bg-base-200 border border-base-300",
@@ -434,11 +434,11 @@ fn ActivityLine(row: ActivityRow) -> Element {
             span { class: "flex-1 min-w-0 break-words",
                 "{row.text}"
                 if let Some(actor) = &row.actor {
-                    span { class: "text-base-content/50", " · {actor}" }
+                    span { class: "text-muted", " · {actor}" }
                 }
             }
             span {
-                class: "font-mono text-xs text-base-content/40 tabular-nums shrink-0",
+                class: "font-mono text-xs text-subtle tabular-nums shrink-0",
                 title: short_time(&row.at),
                 "{row.ago}"
             }
@@ -463,7 +463,7 @@ fn TagsSection(tags: Vec<IssueTag>, project_slug: String) -> Element {
 
     rsx! {
         section {
-            h2 { class: "text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-2",
+            h2 { class: "text-sm font-semibold uppercase tracking-wide text-muted mb-2",
                 "Tags"
             }
             div { class: "grid gap-3 md:grid-cols-2 xl:grid-cols-1",
@@ -474,7 +474,7 @@ fn TagsSection(tags: Vec<IssueTag>, project_slug: String) -> Element {
                         rsx! {
                             div { class: "card bg-base-200 border border-base-300",
                                 div { class: "card-body p-4 gap-2",
-                                    div { class: "text-xs font-mono text-base-content/50", "{key}" }
+                                    div { class: "text-xs font-mono text-muted", "{key}" }
                                     div { class: "flex flex-col gap-1",
                                         for tag in values.into_iter().take(8) {
                                             {
@@ -501,7 +501,7 @@ fn TagsSection(tags: Vec<IssueTag>, project_slug: String) -> Element {
                                                         div { class: "relative flex items-baseline gap-3 px-2 py-1 text-sm",
                                                             span { class: "flex-1 min-w-0 truncate", "{tag.value}" }
                                                             span { class: "font-medium tabular-nums shrink-0", "{pct}%" }
-                                                            span { class: "text-xs text-base-content/50 tabular-nums shrink-0 w-10 text-right",
+                                                            span { class: "text-xs text-muted tabular-nums shrink-0 w-10 text-right",
                                                                 "×{tag.times_seen}"
                                                             }
                                                         }
@@ -510,7 +510,7 @@ fn TagsSection(tags: Vec<IssueTag>, project_slug: String) -> Element {
                                             }
                                         }
                                         if hidden > 0 {
-                                            div { class: "px-2 pt-1 text-xs text-base-content/40", "+{hidden} more" }
+                                            div { class: "px-2 pt-1 text-xs text-subtle", "+{hidden} more" }
                                         }
                                     }
                                 }
@@ -595,7 +595,7 @@ fn RegressionRange(good: String, bad: Option<String>, repo_url: Option<String>) 
 fn Fact(label: &'static str, value: String, #[props(default)] title: Option<String>) -> Element {
     rsx! {
         div {
-            div { class: "text-xs uppercase tracking-wide text-base-content/50", "{label}" }
+            div { class: "text-xs uppercase tracking-wide text-muted", "{label}" }
             div {
                 class: "font-display font-semibold tabular-nums mt-0.5",
                 title: title.unwrap_or_default(),
@@ -674,7 +674,7 @@ fn AnalysisCard(analysis: Analysis) -> Element {
                         span { class: "text-secondary", Icon { icon: LdUserRound, width: 16, height: 16 } }
                         span { class: "badge badge-sm badge-secondary badge-outline", "{analysis.source}" }
                         span {
-                            class: "text-base-content/40 ml-auto",
+                            class: "text-subtle ml-auto",
                             title: short_time(&analysis.created_at),
                             "{analysis.created_ago}"
                         }
@@ -706,10 +706,10 @@ fn AnalysisCard(analysis: Analysis) -> Element {
                         span { class: "badge badge-sm {confidence_class} badge-outline", "{confidence} confidence" }
                     }
                     if let Some(release) = &analysis.release {
-                        span { class: "font-mono text-base-content/50", "against {release}" }
+                        span { class: "font-mono text-muted", "against {release}" }
                     }
                     span {
-                        class: "text-base-content/40 ml-auto",
+                        class: "text-subtle ml-auto",
                         title: short_time(&analysis.created_at),
                         "{analysis.created_ago}"
                     }
@@ -758,7 +758,7 @@ fn AnalysisCard(analysis: Analysis) -> Element {
                 }
                 if let Some(fix) = &analysis.suggested_fix {
                     div { class: "rounded-lg border border-base-300 overflow-hidden mt-1",
-                        div { class: "px-3 py-1.5 bg-base-300/60 text-xs uppercase tracking-wide text-base-content/50",
+                        div { class: "px-3 py-1.5 bg-base-300/60 text-xs uppercase tracking-wide text-muted",
                             "Suggested fix"
                         }
                         pre { class: "bg-base-300/30 p-3 text-sm font-mono overflow-x-auto whitespace-pre-wrap",
@@ -785,12 +785,12 @@ fn EventNav(refs: Vec<EventRef>, total: i64, position: Signal<usize>) -> Element
             span { class: "font-medium tabular-nums", "Event {pos + 1} of {count}" }
             // Retention has dropped the rest; the counter on the issue is the full history.
             if total > count as i64 {
-                span { class: "text-xs text-base-content/50", "the newest {count} of {total} are retained" }
+                span { class: "text-xs text-muted", "the newest {count} of {total} are retained" }
             }
             if let Some(current) = current {
-                span { class: "font-mono text-xs text-base-content/50", "{short_time(&current.timestamp)}" }
+                span { class: "font-mono text-xs text-muted", "{short_time(&current.timestamp)}" }
                 if let Some(release) = current.release {
-                    span { class: "font-mono text-xs text-base-content/50", "{release}" }
+                    span { class: "font-mono text-xs text-muted", "{release}" }
                 }
             }
             span { class: "ml-auto join",
@@ -845,7 +845,7 @@ fn EventView(event: EventDetail, repo_url: Option<String>) -> Element {
                     if let Some(v) = &event.server_name {
                         MetaChip { label: "on", value: v.clone() }
                     }
-                    span { class: "self-center font-mono text-xs text-base-content/40",
+                    span { class: "self-center font-mono text-xs text-subtle",
                         "{event.event_id}"
                     }
                 }
@@ -857,7 +857,7 @@ fn EventView(event: EventDetail, repo_url: Option<String>) -> Element {
                 if i > 0 {
                     div { class: "flex items-center gap-3 -my-2",
                         div { class: "h-px flex-1 bg-base-300" }
-                        span { class: "text-xs uppercase tracking-wide text-base-content/40",
+                        span { class: "text-xs uppercase tracking-wide text-subtle",
                             "caused by"
                         }
                         div { class: "h-px flex-1 bg-base-300" }
@@ -868,7 +868,7 @@ fn EventView(event: EventDetail, repo_url: Option<String>) -> Element {
 
             if !event.breadcrumbs.is_empty() {
                 section { id: "breadcrumbs", class: "scroll-mt-4",
-                    h2 { class: "text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-2",
+                    h2 { class: "text-sm font-semibold uppercase tracking-wide text-muted mb-2",
                         "Breadcrumbs"
                     }
                     div { class: "card bg-base-200 border border-base-300",
@@ -890,7 +890,7 @@ fn EventView(event: EventDetail, repo_url: Option<String>) -> Element {
 
             if !event.context.is_empty() {
                 section {
-                    h2 { class: "text-sm font-semibold uppercase tracking-wide text-base-content/50 mb-2",
+                    h2 { class: "text-sm font-semibold uppercase tracking-wide text-muted mb-2",
                         "Context"
                     }
                     div { class: "grid gap-3 md:grid-cols-2",
@@ -908,7 +908,7 @@ fn EventView(event: EventDetail, repo_url: Option<String>) -> Element {
 fn MetaChip(label: &'static str, value: String) -> Element {
     rsx! {
         span { class: "inline-flex items-baseline gap-1.5 rounded-md border border-base-300 bg-base-200/60 px-2 py-0.5 text-xs",
-            span { class: "text-base-content/50", "{label}" }
+            span { class: "text-muted", "{label}" }
             span { class: "font-mono", "{value}" }
         }
     }
@@ -972,7 +972,7 @@ fn ExceptionView(exception: ExceptionValue, links: Option<SourceLinks>) -> Eleme
             }
 
             if frames.is_empty() {
-                p { class: "text-sm text-base-content/50", "No stack trace." }
+                p { class: "text-sm text-muted", "No stack trace." }
             } else {
                 div { class: "card bg-base-200 border border-base-300 overflow-hidden",
                     div { class: "divide-y divide-base-300",
@@ -1038,7 +1038,7 @@ fn FrameView(frame: Frame, links: Option<SourceLinks>) -> Element {
     let line = frame.lineno.map(|n| format!(":{n}")).unwrap_or_default();
     let location = format!("{where_}{line}");
     let location_class = if frame.function.is_some() {
-        "font-mono text-xs text-base-content/50 truncate"
+        "font-mono text-xs text-muted truncate"
     } else {
         "font-mono text-sm truncate"
     };
@@ -1132,7 +1132,7 @@ fn BreadcrumbRow(crumb: Breadcrumb, event_at: String) -> Element {
     rsx! {
         div { class: "relative pl-6 py-1.5 flex gap-3 items-baseline text-sm",
             span { class: "absolute left-0 top-[0.85rem] w-[7px] h-[7px] rounded-full {dot}" }
-            span { class: "font-mono text-xs text-base-content/50 w-24 shrink-0 truncate",
+            span { class: "font-mono text-xs text-muted w-24 shrink-0 truncate",
                 "{crumb.category.clone().unwrap_or_default()}"
             }
             span { class: "flex-1 min-w-0 break-words",
@@ -1140,7 +1140,7 @@ fn BreadcrumbRow(crumb: Breadcrumb, event_at: String) -> Element {
             }
             if !time.is_empty() {
                 span {
-                    class: "font-mono text-xs text-base-content/40 tabular-nums shrink-0",
+                    class: "font-mono text-xs text-subtle tabular-nums shrink-0",
                     title: "{clock}",
                     "{time}"
                 }
@@ -1154,7 +1154,7 @@ fn ContextCard(group: ContextGroup) -> Element {
     rsx! {
         div { class: "card bg-base-200 border border-base-300",
             div { class: "card-body p-4 gap-2",
-                div { class: "text-xs uppercase tracking-wide text-base-content/50", "{group.title}" }
+                div { class: "text-xs uppercase tracking-wide text-muted", "{group.title}" }
                 dl { class: "text-sm flex flex-col gap-1",
                     for (key , value) in group.entries.iter().cloned() {
                         div { class: "flex gap-2",

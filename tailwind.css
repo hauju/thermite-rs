@@ -135,6 +135,33 @@ h3 {
    Static div cards opt in with `.card-hover`; anchor/button cards lift by
    default. Resting border + shadow live in assets/main.css (.card-elevated). */
 
+/* Two muted text tiers, resolved per theme.
+ *
+ * The opacity ladder cannot be shared between the themes, which is what `text-base-content/40`
+ * and `/50` were doing. 40% of a near-black over a near-white page is a mid grey at 2.54:1 —
+ * below AA for body text and below even the large-text floor — while the same figure over the
+ * dark base clears 3:1, and 50% clears 4.5:1 there outright. Light needs roughly one tier more
+ * ink for the same apparent weight, so the tier is named and each theme says what it costs.
+ *
+ * Both tiers clear 4.5:1 in both themes: muted 6.35 dark / 6.54 light, subtle 4.72 / 4.63.
+ * Use `text-muted` for captions and helper text, `text-subtle` for timestamps and axis ticks.
+ * `bg-base-content/*` is untouched — that ladder is for surfaces, not ink. */
+.text-muted {
+    color: color-mix(in oklab, var(--color-base-content) 60%, transparent);
+}
+
+.text-subtle {
+    color: color-mix(in oklab, var(--color-base-content) 50%, transparent);
+}
+
+[data-theme="light"] .text-muted {
+    color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
+}
+
+[data-theme="light"] .text-subtle {
+    color: color-mix(in oklab, var(--color-base-content) 60%, transparent);
+}
+
 .card {
     transition:
         transform 0.2s ease,

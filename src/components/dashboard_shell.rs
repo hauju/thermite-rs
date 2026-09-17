@@ -294,7 +294,7 @@ fn UserMenu(username: String, email: String, avatar_url: Option<String>) -> Elem
                 }
                 div { class: "min-w-0 flex-1 text-left",
                     div { class: "text-sm font-medium truncate", "{username}" }
-                    div { class: "text-xs text-base-content/50 truncate", "{email}" }
+                    div { class: "text-xs text-muted truncate", "{email}" }
                 }
                 Icon {
                     icon: LdChevronUp,
