@@ -7,10 +7,27 @@ use crate::errors_data::demo_link;
 use crate::routes::Route;
 use crate::waitlist::{WaitlistForm, waitlist_open};
 
+/// The issue page of a real instance, captured at 1440x900 in the dark theme the product ships.
+/// Its intrinsic size is on the tag so the hero does not reflow when it decodes.
+const PRODUCT_SHOT: Asset = asset!("/assets/img/product-issue.webp");
+
+/// The embers animation, as a deferred script in the server-rendered page so it starts with
+/// the mark's CSS entrance, not seconds later when the WASM bundle has hydrated. The same
+/// source runs from `onmounted` for client-side navigation, where a script element cloned
+/// from a template does not execute; the guard keeps the two from restarting each other.
+const HERO_EMBERS: Asset = asset!("/assets/hero-embers.js");
+const HERO_EMBERS_ON_MOUNT: &str = concat!(
+    "if (!window.__thermiteEmbersCleanup) {",
+    include_str!("../../assets/hero-embers.js"),
+    "}"
+);
+
 /// Landing page.
 #[component]
 pub fn Home() -> Element {
-    let demo = use_resource(|| async { demo_link().await.ok().flatten() });
+    // Server-rendered, like the waitlist flag: a button that appears once the client has
+    // hydrated reads as a layout jump, not a feature.
+    let demo = use_server_future(|| async { demo_link().await.ok().flatten() })?;
     use_drop(|| {
         let _ = document::eval("window.__thermiteEmbersCleanup?.();");
     });
@@ -35,9 +52,10 @@ pub fn Home() -> Element {
                 class: "landing-hero-embers",
                 "aria-hidden": "true",
                 onmounted: move |_| {
-                    let _ = document::eval(include_str!("../../assets/hero-embers.js"));
+                    let _ = document::eval(HERO_EMBERS_ON_MOUNT);
                 },
             }
+            script { src: HERO_EMBERS, defer: true }
 
             div { class: "container relative mx-auto px-4 pt-20 pb-16 max-w-4xl",
                 // Hero
@@ -61,7 +79,7 @@ pub fn Home() -> Element {
                         span { class: "landing-gradient-text", "your agent works in." }
                     }
                     p { class: "landing-hero-rise hero-delay-3 text-lg text-base-content/70 max-w-xl mb-9",
-                        "Point an unmodified Sentry SDK at Thermite and errors group into issues in your Postgres. Over MCP, a coding agent claims each new issue, reads the same stack trace you see, and leaves its diagnosis on the issue page."
+                        "Drop-in for any Sentry SDK, self-hosted on your Postgres. A coding agent picks up each new issue over MCP and leaves its diagnosis and a pull request on the issue page."
                     }
 
                     // While hosted signup is behind the waitlist, the form takes the primary spot:
@@ -95,6 +113,39 @@ pub fn Home() -> Element {
                             class: "btn btn-ghost btn-lg rounded-xl gap-2",
                             Icon { icon: LdBookOpen, width: 18, height: 18 }
                             "Read the docs"
+                        }
+                    }
+                }
+
+                // What the copy above is describing, before any of the explaining starts: the
+                // page a reader would land on, with an agent's findings already on it.
+                div { class: "w-full mt-16",
+                    p { class: "text-center text-sm text-base-content/60 mb-4",
+                        "The crash, the agent's diagnosis, and the pull request that fixes it."
+                    }
+                    // After looking at a screenshot people try to click it, so it opens the
+                    // live board when there is one, and says so underneath.
+                    a {
+                        href: demo().flatten(),
+                        class: "block rounded-xl border border-base-300 shadow-2xl overflow-hidden bg-base-200",
+                        img {
+                            src: PRODUCT_SHOT,
+                            width: "1440",
+                            height: "900",
+                            loading: "lazy",
+                            decoding: "async",
+                            class: "block w-full h-auto",
+                            alt: "Thermite's issue page: a TypeError from checkout/pricing.py, an analysis posted by claude-code with high confidence against release 1.1.0, a Review the fix button linking to a pull request, and tag distributions for environment, release and server.",
+                        }
+                    }
+                    if let Some(Some(url)) = demo() {
+                        p { class: "text-center mt-4",
+                            a {
+                                href: "{url}",
+                                class: "link link-primary inline-flex items-center gap-1 text-sm",
+                                "Open this in the live demo"
+                                Icon { icon: LdArrowRight, width: 14, height: 14 }
+                            }
                         }
                     }
                 }
