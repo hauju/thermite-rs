@@ -451,3 +451,83 @@ button.card:active,
         animation: none;
     }
 }
+
+/* ── Docs code blocks ──
+   dioxus-docs-kit 0.9 lexes fences itself and emits `<pre class="dk-code">`
+   with one `<span class="hl-*">` per token; the colors are CSS, not a Rust
+   theme. The kit ships these rules in its own `theme.css`, which thermite does
+   not import — everything else it contains is an additive hook over DaisyUI
+   that this palette already answers — so the load-bearing part lives here.
+
+   The values are Melange (savq/melange-nvim), the one warm pair among the
+   editor themes: charcoal-brown ground, cream ink, amber and gold. The usual
+   default (GitHub Light / Tokyo Night) would drop a blue-violet block into a
+   page whose only cool hue is `accent`. `light-dark()` resolves against the
+   DaisyUI theme's own `color-scheme`, so a block flips with the page and no
+   Rust is involved. */
+
+.dk-root,
+.dk-docs-root {
+    --dk-hl-keyword: light-dark(#bc5c00, #bd8183);
+    --dk-hl-string: light-dark(#3a684a, #85b695);
+    --dk-hl-comment: light-dark(#7d6658, #867462);
+    --dk-hl-number: light-dark(#904180, #cf9bc2);
+    --dk-hl-type: light-dark(#bc5c00, #c1a78e);
+    --dk-hl-function: light-dark(#465aa4, #a3a9ce);
+    --dk-hl-attribute: light-dark(#bc5c00, #c1a78e);
+    --dk-hl-property: light-dark(#bc5c00, #c1a78e);
+    --dk-hl-tag: light-dark(#bc5c00, #bd8183);
+    --dk-hl-operator: light-dark(#bc5c00, #bd8183);
+    --dk-hl-punctuation: light-dark(#54433a, #ece1d7);
+    --dk-hl-constant: light-dark(#904180, #cf9bc2);
+    --dk-hl-variable: light-dark(#54433a, #ece1d7);
+}
+
+.dk-code .hl-keyword { color: var(--dk-hl-keyword); }
+.dk-code .hl-string { color: var(--dk-hl-string); }
+.dk-code .hl-comment { color: var(--dk-hl-comment); font-style: italic; }
+.dk-code .hl-number { color: var(--dk-hl-number); }
+.dk-code .hl-type { color: var(--dk-hl-type); }
+.dk-code .hl-function { color: var(--dk-hl-function); }
+.dk-code .hl-attribute { color: var(--dk-hl-attribute); }
+.dk-code .hl-property { color: var(--dk-hl-property); }
+.dk-code .hl-tag { color: var(--dk-hl-tag); }
+.dk-code .hl-operator { color: var(--dk-hl-operator); }
+.dk-code .hl-punctuation { color: var(--dk-hl-punctuation); }
+.dk-code .hl-constant { color: var(--dk-hl-constant); }
+.dk-code .hl-variable { color: var(--dk-hl-variable); }
+
+/* The `<pre>` carries its own layout inline so a block reads with no
+   stylesheet at all; wrap it into the kit's container chrome instead of
+   letting a long line scroll the page. */
+
+.dk-code-block .dk-code {
+    border-radius: 0;
+    font-size: 0.875rem;
+    line-height: 1.625;
+    margin: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-wrap: anywhere;
+    padding: 1rem;
+    white-space: pre-wrap;
+}
+
+.dk-code-block-body--bare .dk-code,
+.dk-code-group-block .dk-code {
+    padding-right: 3.5rem;
+}
+
+/* The prose body is pre-rendered HTML, so there is no markup to hang a
+   utility class off: long inline code and wide tables are tamed here or they
+   push the article wider than the viewport. */
+
+.prose-content code {
+    overflow-wrap: anywhere;
+}
+
+.prose-content table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+}

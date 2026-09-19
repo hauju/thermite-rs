@@ -16,10 +16,11 @@ use crate::routes::Route;
 // Documentation Registry
 // ============================================================================
 
-dioxus_docs_kit::doc_content_map!();
-
+/// Pages, their rendered HTML and the search index are parsed by `build.rs` into one JSON
+/// bundle; `docs_bundle!()` embeds it and the registry deserializes it once, on first use.
+/// Nothing here parses Markdown, so the WASM client links no parser.
 pub static DOCS: LazyLock<DocsRegistry> = LazyLock::new(|| {
-    DocsConfig::new(include_str!("../../docs/_nav.json"), doc_content_map())
+    DocsConfig::new(dioxus_docs_kit::docs_bundle!())
         .with_default_path("getting-started/introduction")
         .build()
 });

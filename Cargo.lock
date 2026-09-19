@@ -1309,26 +1309,25 @@ dependencies = [
 
 [[package]]
 name = "dioxus-docs-kit"
-version = "0.6.1"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c39915feebd4b33243cd43de1c2d729959862fa3fa673532c408f053ac5a80b"
+checksum = "3ced2191f71c9630cdc2c98d2801c5c835cfa51d796b36151dfec7ca8b615804"
 dependencies = [
  "dioxus",
- "dioxus-free-icons",
  "dioxus-mdx",
  "gloo-timers 0.3.0",
  "serde",
  "serde_json",
- "serde_yaml",
  "tracing",
 ]
 
 [[package]]
 name = "dioxus-docs-kit-build"
-version = "0.6.1"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15d4e79e57b6516826e6fc3965ec2dfa0ccc32c7f21f0185316d324b6255c4ae"
+checksum = "11ba1b9e0396d7666ccd39adade576d18f70f0509a6dd0db74a2abe17e1d2e28"
 dependencies = [
+ "dioxus-mdx",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -1595,20 +1594,21 @@ dependencies = [
 
 [[package]]
 name = "dioxus-mdx"
-version = "0.6.1"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ae82535619a461050d2e67dfff8fca1baf578eec47a36abc5102afe83e7f1d8"
+checksum = "b29ac350e0a2dc9239bac3845f843cc91a90547096499b0c989d0c074f9e8f9b"
 dependencies = [
  "dioxus",
- "dioxus-free-icons",
  "gloo-timers 0.3.0",
+ "hl-lite",
  "markdown",
  "openapiv3",
- "regex",
+ "regex-lite",
  "serde",
  "serde_json",
  "serde_yaml",
  "tracing",
+ "web-sys",
 ]
 
 [[package]]
@@ -2486,6 +2486,12 @@ checksum = "7b5f8eb2ad728638ea2c7d47a21db23b7b58a72ed6a38256b8a1849f15fbbdf7"
 dependencies = [
  "hmac",
 ]
+
+[[package]]
+name = "hl-lite"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "338749d6a6996925daf0b2cbb3f2ae1de3285d401e85458f7b52c68c9b1007bc"
 
 [[package]]
 name = "hmac"

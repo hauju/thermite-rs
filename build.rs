@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 fn main() {
-    dioxus_docs_kit_build::generate_content_map("docs/_nav.json");
+    dioxus_docs_kit_build::DocsBuild::new("docs/_nav.json").generate();
     prerender_legal_markdown();
     emit_build_id();
 }
