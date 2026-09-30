@@ -108,21 +108,30 @@ jobs:
       # GHCR namespaces images by owner and rejects uppercase, so the owner is
       # lowercased rather than assumed. A private registry is appended only when one
       # is configured — on a fork that is nothing, and the public tags still stand.
+      #
+      # `latest` moves only on main. A manual run from a branch pushes its SHA tag
+      # alone: `latest` is what every self-hoster and both deployed instances pull,
+      # so a branch build must never be able to become it.
       - name: Work out the tags
         id: tags
         env:
           REGISTRY: ${{ vars.REGISTRY }}
           OWNER: ${{ github.repository_owner }}
           SHA: ${{ github.sha }}
+          REF: ${{ github.ref }}
         run: |
           public="ghcr.io/$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')/$IMAGE_NAME"
           {
             echo "tags<<EOF"
-            echo "$public:latest"
             echo "$public:$SHA"
+            if [ "$REF" = "refs/heads/main" ]; then
+              echo "$public:latest"
+            fi
             if [ -n "$REGISTRY" ]; then
-              echo "$REGISTRY/$IMAGE_NAME:latest"
               echo "$REGISTRY/$IMAGE_NAME:$SHA"
+              if [ "$REF" = "refs/heads/main" ]; then
+                echo "$REGISTRY/$IMAGE_NAME:latest"
+              fi
             fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
