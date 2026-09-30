@@ -32,7 +32,7 @@ tracing = { workspace = true }
 # Crontab schedules for cron monitoring. Parsing five fields is deceptively easy to get subtly
 # wrong (step values, ranges, day-of-week/day-of-month interaction), and a wrong next-due time
 # means a silently missed alert.
-cron = "0.16"
+cron = "0.17"
 chrono-tz = "0.10"
 
 # `rt` for the retention sweeper's task, `time` for its interval. sqlx's runtime-tokio already
@@ -42,8 +42,8 @@ tokio = { version = "1", features = ["rt", "time"] }
 
 # Request body decompression: SDKs vary in what they send.
 flate2 = "1"
-zstd = "0.13"
-brotli = "8"
+zstd = "0.14"
+brotli = "9"
 
 # OTLP ingest. The messages are hand-written rather than generated: `prost-build` would need
 # `protoc` in every build environment, and we read about a dozen fields out of a schema with
@@ -55,7 +55,7 @@ bytes = "1"
 
 # Grouping: message normalization is regex-driven.
 regex = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 uuid = { version = "1", features = ["v4", "serde"] }
 url = "2"
 
