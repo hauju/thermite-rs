@@ -81,6 +81,9 @@ pub struct Config {
     /// Umami website id. Unset: no tracker tag is written into the page at all — the image is
     /// public, so an instance nobody configured must phone nowhere.
     pub umami_website_id: Option<String>,
+    /// The experimental MCP events extension (`src/server/mcp_events.rs`): the `events`
+    /// capability, the `events/*` methods and the fire endpoint. Off: none of them exist.
+    pub mcp_events: bool,
     /// Size of the interactive pool (dashboard, sessions, API, MCP).
     pub db_max_connections: u32,
     /// Size of the ingest pool — the ceiling on concurrent event digests.
@@ -177,6 +180,9 @@ impl Config {
                 .map(|v| v == "true")
                 .unwrap_or(false),
             umami_website_id: umami_website_id(get_env_optional("UMAMI_WEBSITE_ID")),
+            mcp_events: get_env_optional("THERMITE_MCP_EVENTS")
+                .map(|v| v == "true")
+                .unwrap_or(false),
             db_max_connections: parse_env_or("DATABASE_MAX_CONNECTIONS", 10),
             db_ingest_max_connections: parse_env_or("DATABASE_INGEST_MAX_CONNECTIONS", 10),
         })

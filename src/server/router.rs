@@ -190,6 +190,12 @@ pub async fn build(base: Router, app_state: AppState) -> Router {
         // OAuth 2.1 authorization server + MCP connector (see src/server/oauth, mcp).
         .merge(server::oauth::oauth_router(pool.clone(), trust_proxy))
         .merge(server::mcp::mcp_router(app_state.clone(), trust_proxy))
+        // POST /api/v1/mcp-events/fire, only with THERMITE_MCP_EVENTS (see src/server/mcp_events).
+        .merge(if app_state.config.mcp_events {
+            server::mcp_events::fire_router()
+        } else {
+            Router::new()
+        })
         // Sentry-compatible ingest. Public by necessity — SDKs authenticate with a DSN key, not
         // a session — so it sits outside everything session-related.
         .merge(server::thermite::ingest_router(

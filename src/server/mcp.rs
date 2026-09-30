@@ -22,7 +22,11 @@ use rmcp::ErrorData as McpError;
 use rmcp::handler::server::ServerHandler;
 use rmcp::handler::server::tool::{Extension, ToolRouter};
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerConfig};
+use rmcp::model::{
+    CallToolResult, ContentBlock, CustomRequest, CustomResult, ErrorCode, Implementation,
+    ServerCapabilities, ServerConfig,
+};
+use rmcp::service::{RequestContext, RoleServer};
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::streamable_http_server::tower::{
     StreamableHttpServerConfig, StreamableHttpService,
@@ -38,6 +42,7 @@ use thermite_core::api::{
 use thermite_core::{AppError, AppResult};
 
 use crate::server::api_auth::{self, ApiAuth};
+use crate::server::mcp_events;
 use crate::server::security::{IpRateLimiter, ip_rate_limit};
 use crate::server::state::AppState;
 
@@ -521,6 +526,30 @@ impl ServerHandler for McpTools {
                  like a regression.",
             )
     }
+
+    /// The experimental `events/*` methods, which rmcp has no model for. With the flag off they
+    /// answer method-not-found, exactly as rmcp's default does.
+    async fn on_custom_request(
+        &self,
+        request: CustomRequest,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CustomResult, McpError> {
+        if !self.state.config.mcp_events || !mcp_events::is_events_method(&request.method) {
+            return Err(McpError::new(
+                ErrorCode::METHOD_NOT_FOUND,
+                request.method,
+                None,
+            ));
+        }
+        // rmcp moves the HTTP request parts into the context, as the tools' `Extension<Parts>`
+        // reads them.
+        let parts = context
+            .extensions
+            .get::<Parts>()
+            .ok_or_else(|| McpError::internal_error("request parts missing", None))?;
+        let auth = self.authenticate(parts).await?;
+        mcp_events::handle(&self.state, &mcp_events::principal(auth.user.id), request).await
+    }
 }
 
 /// Presence-only OAuth challenge for `/mcp` (RFC 9728).
@@ -599,6 +628,7 @@ pub fn mcp_router(state: AppState, trust_proxy_headers: bool) -> Router {
     let session_manager = Arc::new(LocalSessionManager::default());
     let server_config = StreamableHttpServerConfig::default()
         .with_allowed_hosts(allowed_hosts(&state.config.base_url));
+    let events = state.config.mcp_events;
 
     let service = StreamableHttpService::new(
         move || Ok(McpTools::new(state.clone())),
@@ -606,8 +636,12 @@ pub fn mcp_router(state: AppState, trust_proxy_headers: bool) -> Router {
         server_config,
     );
 
-    Router::new()
-        .route_service("/mcp", service)
+    let mut router = Router::new().route_service("/mcp", service);
+    if events {
+        // rmcp cannot declare the `events` capability; this adds it to `server/discover`.
+        router = router.layer(axum::middleware::from_fn(mcp_events::advertise_events));
+    }
+    router
         .layer(axum::middleware::from_fn(mcp_auth_challenge))
         .layer(axum::middleware::from_fn(ip_rate_limit))
         .layer(axum::Extension(limiter))

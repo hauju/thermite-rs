@@ -68,6 +68,7 @@ pub fn test_state(db: Database) -> AppState {
         site_url: None,
         waitlist: false,
         umami_website_id: None,
+        mcp_events: false,
         db_max_connections: 10,
         db_ingest_max_connections: 10,
     };

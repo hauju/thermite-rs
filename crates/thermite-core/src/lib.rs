@@ -11,6 +11,7 @@ pub mod auth;
 pub mod config;
 pub mod error;
 pub mod ingest;
+pub mod mcp_events;
 pub mod monitors;
 pub mod protocol;
 pub mod retention;

@@ -10,6 +10,7 @@ pub mod demo_login;
 pub mod health;
 pub mod llms;
 pub mod mcp;
+pub mod mcp_events;
 pub mod oauth;
 pub mod og;
 pub mod passkey_store;

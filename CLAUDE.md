@@ -394,6 +394,17 @@ Three things to preserve when editing:
 `allowed_hosts` is derived from `BASE_URL`: rmcp validates `Host` to block DNS rebinding, and its
 default allowlist is loopback-only, which would reject every request to a deployed instance.
 
+**MCP events are a spike behind `THERMITE_MCP_EVENTS`** (`src/server/mcp_events.rs`, storage in
+`thermite_core::mcp_events`): ChatGPT's experimental `events/*` extension, so a client can
+subscribe a webhook to `issue.created` / `issue.regressed`. rmcp has no model for any of it — the
+methods arrive through `on_custom_request`, and because `ServerCapabilities` is closed, a layer on
+`/mcp` adds `"events": {}` to the `server/discover` result, which rmcp frames as SSE. Every
+subscribe re-verifies the callback with a signed challenge before a row is written; callbacks must
+be HTTPS and resolve only to public addresses, re-checked before every request, with no switch to
+disable that. Nothing fires on its own: `POST /api/v1/mcp-events/fire` delivers one event by hand,
+once, with no retries. Off, discover carries no `events`, the methods are method-not-found and the
+fire route does not exist.
+
 `GET /llms.txt` (`src/server/llms.rs`) is the unauthenticated discovery page for agents: what
 Thermite is, where `/mcp` lives, how to authenticate, and the triage loop. It describes the
 interface, never data — keep it that way.

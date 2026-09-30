@@ -110,7 +110,7 @@ pub fn api_router(state: AppState) -> Router {
 ///
 /// Checked once at the edge rather than per handler, so a new route cannot be added unprotected by
 /// forgetting an extractor.
-async fn require_api_auth(
+pub(crate) async fn require_api_auth(
     Extension(state): Extension<AppState>,
     request: Request,
     next: Next,
