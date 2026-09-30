@@ -22,7 +22,7 @@ use rmcp::ErrorData as McpError;
 use rmcp::handler::server::ServerHandler;
 use rmcp::handler::server::tool::{Extension, ToolRouter};
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerInfo};
+use rmcp::model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerConfig};
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::streamable_http_server::tower::{
     StreamableHttpServerConfig, StreamableHttpService,
@@ -500,8 +500,8 @@ impl McpTools {
 /// statelessly, so pinning it would break older clients.
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for McpTools {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(
                 Implementation::new("thermite", env!("CARGO_PKG_VERSION"))
                     .with_title("Thermite MCP"),
