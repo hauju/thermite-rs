@@ -56,6 +56,9 @@ pub fn DocsShell() -> Element {
     // does not have. `DocsPage` writes the page tags from the same registry instead; what that
     // forgoes is the kit's `TechArticle` JSON-LD.
     docs_ctx.auto_meta = false;
+    // Independent of `auto_meta`: points an agent that landed on the human docs at the
+    // machine-readable index `server::llms` serves on every instance.
+    docs_ctx.llms_txt = true;
 
     let providers = use_docs_providers(&DOCS, docs_ctx);
     let search_open = providers.search_open;
