@@ -1384,9 +1384,9 @@ dependencies = [
 
 [[package]]
 name = "dioxus-docs-kit"
-version = "0.9.0"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ced2191f71c9630cdc2c98d2801c5c835cfa51d796b36151dfec7ca8b615804"
+checksum = "aeea4f530443ca3bb437d42ceb6c38d96645aa015cd0c9989f7df5cbb995769a"
 dependencies = [
  "dioxus",
  "dioxus-mdx",
@@ -1398,9 +1398,9 @@ dependencies = [
 
 [[package]]
 name = "dioxus-docs-kit-build"
-version = "0.9.0"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11ba1b9e0396d7666ccd39adade576d18f70f0509a6dd0db74a2abe17e1d2e28"
+checksum = "8f1846e372f7293a88fe6c2a278aa14148f7498a817151163231765e88a6eb83"
 dependencies = [
  "dioxus-mdx",
  "serde",
@@ -1669,9 +1669,9 @@ dependencies = [
 
 [[package]]
 name = "dioxus-mdx"
-version = "0.9.0"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b29ac350e0a2dc9239bac3845f843cc91a90547096499b0c989d0c074f9e8f9b"
+checksum = "f0f77d50374ca28c36ad0f2923c261fdedaf04a6c0e417979a2075ca2d462ea1"
 dependencies = [
  "dioxus",
  "gloo-timers 0.3.0",
@@ -2570,9 +2570,9 @@ dependencies = [
 
 [[package]]
 name = "hl-lite"
-version = "0.9.0"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "338749d6a6996925daf0b2cbb3f2ae1de3285d401e85458f7b52c68c9b1007bc"
+checksum = "338abefcdadf6ebed482af07551df8f84720a87da8750ac182a4ce33dfbe3393"
 
 [[package]]
 name = "hmac"
