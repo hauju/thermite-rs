@@ -21,7 +21,7 @@ prepare:
     cargo sqlx prepare -- --no-default-features --features server
 
 init:
-    docker compose up -d
+    docker compose -f ~/Projects/dev-services/compose.yml up -d
 
 serve:
     dx serve --addr 0.0.0.0

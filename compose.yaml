@@ -3,6 +3,8 @@
 # database with default credentials is never reachable from the network.
 services:
   postgres:
+    # Provided by ~/Projects/dev-services; run with --profile standalone to use this one.
+    profiles: [standalone]
     image: postgres:18
     ports:
       - "127.0.0.1:5433:5432"
@@ -20,6 +22,8 @@ services:
       retries: 30
 
   mailpit:
+    # Provided by ~/Projects/dev-services; run with --profile standalone to use this one.
+    profiles: [standalone]
     # Pinned: `latest` silently changes the SMTP behaviour under a dev stack.
     image: axllent/mailpit:v1.27
     ports:

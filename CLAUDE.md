@@ -15,7 +15,7 @@ binaries via Cargo features: a server (`server`) and a WASM client (`web`).
 ## Commands
 
 ```sh
-docker compose up -d          # PostgreSQL + Mailpit          (just init)
+# Postgres/Mailpit: shared ~/Projects/dev-services stack (always on); own copies: docker compose --profile standalone up -d  (just init)
 just bootstrap                # .env with a fresh SESSION_SECRET
 dx serve --addr 0.0.0.0       # dev server, auto-reloads      (just serve)
 
@@ -644,7 +644,7 @@ database clock authoritative across replicas.
 
 ### Infrastructure
 
-- **PostgreSQL** on host port 5433: application data, the session store (`tower-sessions-sqlx-store`, own
+- **PostgreSQL** (shared `~/Projects/dev-services` stack, `localhost:5432`): application data, the session store (`tower-sessions-sqlx-store`, own
   schema, hourly pruning), shared rate-limit counters, and all error data.
 - **Three connection pools** (`src/server/db.rs`): interactive (dashboard/sessions/API/MCP),
   ingest, and background (sweepers). Synchronous ingest holds a connection per event, so an error
@@ -652,10 +652,9 @@ database clock authoritative across replicas.
   liveness-only *because* the Docker `HEALTHCHECK` restarts on it; a probe that touched the
   database would restart the container mid-storm, which is why the DB round-trip lives on
   `/ready` instead. Do not merge the pools or "simplify" the two probes into one.
-- **Mailpit**: local SMTP. SMTP 1028, web UI 8028.
+- **Mailpit**: shared stack — SMTP `localhost:1025`, web UI http://localhost:8025.
 
-Both are published on `127.0.0.1` at offset host ports so the stack coexists with other projects'
-Postgres/Mailpit containers and a default-credential dev database is never exposed to the network.
+Both come from the shared always-on `~/Projects/dev-services` stack. The project's own copies sit behind `profiles: [standalone]`.
 
 ### Docker
 
