@@ -1,0 +1,147 @@
+---
+title: Scheduled triage with Claude Managed Agents
+description: A hosted agent that drains the triage queue on a schedule — five files in your repo, no server to run
+sidebarTitle: Managed Agents
+---
+
+## An agent that runs itself
+
+The [MCP guide](/docs/guides/mcp) shows how an agent works the triage queue: `claim_triage`,
+`get_issue`, `post_analysis`, `ack_triage`. Something still has to start the agent. With
+[Claude Managed Agents](https://platform.claude.com/docs/en/managed-agents/overview) that
+something is a cron schedule on Anthropic's side: a deployment fires a session every hour, the
+session connects to your Thermite's `/mcp`, drains what is pending, and stops. Nothing runs on
+your infrastructure.
+
+Thermite's repository ships the definition under
+[`managed-agents/`](https://github.com/hauju/thermite-rs/tree/main/managed-agents): four
+resource files and a lockfile, kept in sync with `ant apply`.
+
+```
+agents/triage.md            the agent: model, your MCP server, the triage prompt
+environments/cloud.yaml     a container whose egress is limited to MCP servers
+vaults/thermite-demo.yaml   the vault that will hold your oat_ key
+deployments/triage.md       the hourly schedule and the per-run spend cap
+```
+
+<Note>
+**Thermite never calls a model.** The agent is a plain MCP client of your instance, authenticated
+with an `oat_` key like any other. Findings arrive through `post_analysis` and appear on the issue
+page; nothing about the agent, its prompt or its billing touches Thermite.
+</Note>
+
+## Set it up
+
+<Steps>
+  <Step title="Install the Anthropic CLI">
+    ```bash
+    brew install anthropics/tap/ant
+    ant auth login
+    ```
+
+    The login binds the CLI to one organization and workspace; every resource below is created
+    there.
+  </Step>
+  <Step title="Point the agent at your instance">
+    Copy `managed-agents/` into your own repository and change one line in `agents/triage.md`:
+
+    ```yaml
+    mcp_servers:
+      - type: url
+        name: thermite
+        url: https://errors.example.com/mcp
+    ```
+
+    Delete `claude-lock.json` if you copied it — it names Thermite's own resources, and `ant apply`
+    refuses a lockfile from another workspace.
+  </Step>
+  <Step title="Create the resources">
+    From the directory that holds the files:
+
+    ```bash
+    ant apply --dry-run agents environments vaults deployments   # the plan
+    ant apply agents environments vaults deployments             # create them
+    ```
+
+    The run writes `claude-lock.json` with each resource's id. Commit it: the next `ant apply`
+    updates the same resources instead of creating duplicates.
+  </Step>
+  <Step title="Add the API key">
+    Mint an `oat_` key in **Settings → API keys**, then store it in the vault. The key goes to
+    Anthropic's vault and is injected into the agent's requests at egress; the agent never sees
+    it.
+
+    ```bash
+    ant beta:vaults:credentials create \
+      --vault-id "$(jq -r '.resources["./vaults/thermite-demo.yaml"].id' claude-lock.json)" \
+      --display-name "Thermite API key" \
+      --auth '{type: static_bearer, mcp_server_url: https://errors.example.com/mcp, token: oat_...}'
+    ```
+
+    The `mcp_server_url` must match the agent's `mcp_servers` entry: credentials are matched to
+    servers by URL.
+  </Step>
+  <Step title="Run it once">
+    ```bash
+    ant beta:deployments run \
+      --deployment-id "$(jq -r '.resources["./deployments/triage.md"].id' claude-lock.json)"
+    ```
+
+    The run returns a session id. Follow it live with
+    `ant beta:sessions:events stream --session-id sesn_...`, or open it in the Console. Within a
+    few minutes every pending issue carries an analysis.
+  </Step>
+</Steps>
+
+## What the agent does, and does not do
+
+The prompt in `agents/triage.md` is the whole behaviour, and it is short enough to read. The
+agent claims three items at a time under a 15-minute lease, reads each issue once, writes a
+diagnosis with an honest confidence, and acknowledges the item. It reads human notes before
+machine findings, and it treats a missed cron monitor as a monitor finding rather than a code bug.
+
+Two tools are switched off on the agent rather than merely discouraged: `create_project` and
+`set_issue_status`. Resolving is a decision tied to a shipped release, and a diagnosing agent has
+not shipped anything.
+
+<Tip>
+**Overlapping runs are safe.** A run that takes longer than the schedule interval does not cause
+the next run to diagnose the same issue twice — `claim_triage` is a lease, and that is what it is
+for.
+</Tip>
+
+## Cost
+
+`deployments/triage.md` carries a hard cap per session (`budget`, in cents at list price; the
+shipped file says $3). A run that finds nothing is one tool call and costs a few cents; a run that
+drains a backlog stops at the cap and the hourly sweep continues where it left off.
+
+Tune the `schedule` to how fast you want findings. Hourly is a sensible default; every 10 minutes
+means ~144 mostly-empty runs a day.
+
+## Triggers
+
+The schedule is the only trigger Managed Agents offers. There is no inbound webhook on Anthropic's
+side that starts a session, so reacting to an alert within seconds means something you run holding
+an Anthropic key, calling `POST /v1/deployments/{id}/run` when Thermite's alert webhook fires. For
+most teams the hourly sweep is enough, and it is the part with nothing to operate.
+
+## Giving it the repository
+
+The shipped agent diagnoses from what Thermite holds. A deployment can also attach a
+`github_repository` resource, which lets the session check out the `release` that crashed, open a
+pull request and hand the link back as `fix_url` — the loop described under
+[Handing back a pull request](/docs/guides/mcp#handing-back-a-pull-request). The repository
+credential lives on the Anthropic side, in the deployment or a vault; Thermite still holds no git
+credential.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Connect an agent (MCP)" icon="plug" href="/docs/guides/mcp">
+    The tools the agent uses, and the triage loop in detail.
+  </Card>
+  <Card title="Authentication" icon="lock" href="/docs/guides/authentication">
+    What an `oat_` key can do, and how to revoke one.
+  </Card>
+</CardGroup>

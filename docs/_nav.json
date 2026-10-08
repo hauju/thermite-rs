@@ -16,6 +16,7 @@
       "pages": [
         "guides/sdks",
         "guides/mcp",
+        "guides/managed-agents",
         "guides/cron",
         "guides/authentication"
       ]

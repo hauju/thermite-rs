@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "origin": {
+    "base_url": "https://api.anthropic.com",
+    "organization_id": "27ede1cb-53ee-4c11-b1ba-d6f8a2bdb22f",
+    "workspace_id": "wrkspc_01JApbSKsQQwR5dsppsFRLgu"
+  },
+  "resources": {
+    "./agents/triage.md": {
+      "kind": "agent",
+      "id": "agent_017eMcJc2ygPPQMZCCtt6E2Z",
+      "version": "2",
+      "hash": "9a19deb95bd949f5f93d07860a57c1e5",
+      "remote_hash": "c85f90389915bcbd6987f9f7d27e768c"
+    },
+    "./deployments/triage.md": {
+      "kind": "deployment",
+      "id": "depl_01FiKRWd6S9GDi8Vxswr9Wea",
+      "hash": "215826e4efb8a4d77b9eb128b0037546",
+      "remote_hash": "215826e4efb8a4d77b9eb128b0037546"
+    },
+    "./environments/cloud.yaml": {
+      "kind": "environment",
+      "id": "env_01EWHXoT3ynFG8jB6Gq5XCs8",
+      "hash": "b5ea870ed59a1a29af3b5fbc425c33b9",
+      "remote_hash": "0ae730a6aa05ce22e153d79c6d87664d"
+    },
+    "./vaults/thermite-demo.yaml": {
+      "kind": "vault",
+      "id": "vlt_011CfoZoE1Q3JmHsUNCqXpAJ",
+      "hash": "4f10eb3e86e868db46cd416bc6b30f6b",
+      "remote_hash": "4f10eb3e86e868db46cd416bc6b30f6b"
+    }
+  }
+}

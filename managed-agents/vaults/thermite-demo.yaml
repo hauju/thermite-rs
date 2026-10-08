@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://platform.claude.com/schemas/ant/beta/vault.json
+# Holds the Thermite API key the agent authenticates to /mcp with. The credential itself is not
+# managed by `ant apply` (secrets never go in a file); add it once with:
+#
+#   ant beta:vaults:credentials create --vault-id "$(jq -r '.resources["./vaults/thermite-demo.yaml"].id' claude-lock.json)" \
+#     --display-name "demo.thermite.rs API key" \
+#     --auth '{type: static_bearer, mcp_server_url: https://demo.thermite.rs/mcp, token: oat_...}'
+#
+# The URL must match the agent's mcp_servers entry; Anthropic matches credentials to servers by URL.
+display_name: Thermite demo

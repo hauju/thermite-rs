@@ -279,6 +279,13 @@ Triage items carry the `release` the error came from. When that is a git SHA, an
 the revision that actually crashed — diagnosing against the wrong revision produces confident but
 wrong answers.
 
+**`managed-agents/` is the reference agent**, as Claude Managed Agents resources synced with
+`ant apply` (agent, environment, vault, an hourly deployment, and the lockfile that pins their
+ids). It is a plain MCP client of `/mcp` with an `oat_` key held in Anthropic's vault, so nothing
+in it touches Thermite's code; `docs/guides/managed-agents.mdx` is the setup guide. The schedule
+is its only trigger: Managed Agents has no inbound webhook, and an alert-driven bridge was built
+and removed as not worth operating for the latency it bought.
+
 Regressions additionally carry the **regression range**: reopening moves the issue's
 `resolved_in_release_id` anchor to `regressed_from_release_id` instead of just clearing it, so the
 release the fix was verified against survives as the last known good. Triage items and the issue
